@@ -1,0 +1,13 @@
+# gitignore for decanOpy
+
+
+# Outfiles
+*.out
+
+# Mac DS files
+.DS_Store
+
+# iPynb checkpoints
+.ipynb_checkpoints*
+
+
