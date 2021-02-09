@@ -6,6 +6,8 @@ from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun
 from sunpy.coordinates import frames, sun
 import csv
 import argparse
+import os
+import errno
 
 
 ###
@@ -60,10 +62,20 @@ minutes = d4min * np.arange(0, 15)
 ###
 ##### Writing the .txt file
 ###
+direct = os.getcwd() # current working directory
+ditect = direct + '/DecanLists' # directory where the .txt files go
+
+if not os.path.exists(os.path.dirname(direct)):
+    try:
+        os.makedirs(os.path.dirname(direct))
+    except OSError as exc: # Guard against race condition
+        if exc.errno != errno.EEXIST:
+            raise
 
 
+filename = direct + "/" + decan + month + year + "BC.txt"
 
-with open(decan + month + year + "BC.txt", "w", newline='') as file:
+with open(filename, "w", newline='') as file:
     writer = csv.writer(file, delimiter='|')
     writer.writerow(["Object: " + decan])
     writer.writerow(["Luxor = EarthLocation(lat=25.68*u.deg, lon=31.55*u.deg, height=89*u.m)"])
