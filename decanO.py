@@ -7,6 +7,12 @@ from sunpy.coordinates import frames, sun
 import csv
 import argparse
 
+
+###
+##### Parse the arguments
+###
+
+
 parser = argparse.ArgumentParser('My program')
 parser.add_argument('-decan', '--one')
 parser.add_argument('-yearBC', '--two')
@@ -18,6 +24,10 @@ args = parser.parse_args()
 decan = str(args.one)
 year = str(args.two)
 month = str(args.three)
+
+###
+##### Determining the when and where
+###
 
 ## Set Location on Earth 
 
@@ -47,6 +57,12 @@ hours = dhour * np.arange(0, 24)
 minutes = d4min * np.arange(0, 15)
 
 
+###
+##### Writing the .txt file
+###
+
+
+
 with open(decan + month + year + "BC.txt", "w", newline='') as file:
     writer = csv.writer(file, delimiter='|')
     writer.writerow(["Object: " + decan])
@@ -73,4 +89,152 @@ with open(decan + month + year + "BC.txt", "w", newline='') as file:
                                  '{0:.1f}'.format(sun_altaz.T.alt)])
 
 
+
+###
+##### Functions for data processing
+###
+
+
+# Import Decan Data
+
+def ImportDecanData(direct, filename):
+    
+    '''
+    A function to import data from a decanOpy-generated .txt file. 
+    Inputs: 
+        direct = string with the directory where the .txt file is located
+        filename = string with name of file (name + month + year)
+    Outputs:
+        jd = Julian date
+        date = human readable date
+        DecAz = the azimuth of the decan
+        DecAlt = the altitude of the decan
+        SunAz = the azimuth of the Sun
+        SunAlt = the altitude of the Sun
+    '''
+    
+    jd = []
+    date = []
+    DecAz = []
+    DecAlt = []
+    SunAz = []
+    SunAlt = []
+    # Import Single Object
+    with open(direct + filename) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter='|')
+        decan = next(csv_reader)[0]
+        location = next(csv_reader)[0]
+        trash = next(csv_reader)
+        headers = next(csv_reader)
+        for row in csv_reader:
+            # time info
+            jd.append(float(row[0]))
+            date.append(row[1])
+            # decan info
+            DecAz.append(float(row[2][0:-4]))
+            DecAlt.append(float(row[3][0:-4]))
+            # solar info
+            SunAz.append(float(row[4][0:-4]))
+            SunAlt.append(float(row[5][0:-4]))
+    return(jd, date, DecAz, DecAlt, SunAz, SunAlt)
+
+def JustDecanData(direct, filename):
+    
+    '''
+    A function to import just the can data data from a decanOpy-generated .txt file. 
+    Used for the MaxMinAltAz function.
+    Inputs: 
+        direct = string with the directory where the .txt file is located
+        filename = string with name of file (name + month + year)
+    Outputs:
+        DecAz = the azimuth of the decan
+        DecAlt = the altitude of the decan
+    '''
+    
+    DecAz = []
+    DecAlt = []
+    # Import Single Object
+    with open(direct + filename) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter='|')
+        decan = next(csv_reader)[0]
+        location = next(csv_reader)[0]
+        trash = next(csv_reader)
+        headers = next(csv_reader)
+        for row in csv_reader:
+            # decan info
+            DecAz.append(float(row[2][0:-4]))
+            DecAlt.append(float(row[3][0:-4]))
+            # solar info
+    return(DecAz, DecAlt)
+
+# Get Sunset and Sunrise Times
+
+def SunRiseSet(jd, SunAlt):
+    
+    '''
+    A function to create a list of indices where the Sun rises and sets in a given year. 
+    This is useful for making sure we're tracking nightly, visible motion of the decans.
+    Inputs: 
+        jd = Julian date
+        SunAlt = the altitude of the Sun
+    Outputs:
+        sunriseset = indices of sunrize and sunset in the jd & date columns
+    '''
+    
+    sunriseset = []
+    for i in range(360, len(jd), 360):
+        temp = []
+        for j in range(i - 360, i):
+            if SunAlt[j] <= 0.4 and SunAlt[j] >= -0.4:
+                if len(temp) == 0: 
+                    temp.append(j)
+                elif temp[-1] != j - 1:
+                    temp.append(j)
+        sunriseset.append(temp)
+    return sunriseset
+
+# Maximum and Minimum Nightly Altitude of Object
+
+def MaxMinAltAz(direct, filename, jd, sunriseset):
+    
+    '''
+    A function to create lists of minimum and maximum azimuths and altitudes of the decan. 
+    This is useful for making sure we're tracking nightly, visible motion of the decans.
+    Inputs: 
+        direct = string with the directory where the .txt file is located
+        filename = string with name of file (name + month + year)
+        jv = Julian date
+        sunriseset = indices of sunrize and sunset in the jd & date columns
+    Outputs:
+        sunriseset = indices of sunrize and sunset in the jd & date columns
+        days = list of indices when it's daylight 
+        minaz, maxaz = minimum and maximum azimuths of the decan per night
+        minalt, maxalt = minimum and maximum altitudes of the decan per night
+        riseaz, setaz = azimuth of decan at rise & set
+        risealt, setalt = altitude of decan at rise & set
+    '''
+    
+    (DecAz, DecAlt) = JustDecanData(direct, filename)
+    maxalt = []
+    minalt = []
+    maxaz = []
+    minaz = []
+    riseaz = []
+    setaz = []
+    risealt = []
+    setalt = []
+    days = []
+    for i in range(0, int(len(jd)/360) - 2):
+        sset = sunriseset[i][1]
+        srise = sunriseset[i + 1][0]
+        maxalt.append(max(DecAlt[sset:srise]))
+        minalt.append(min(DecAlt[sset:srise]))
+        maxaz.append(max(DecAz[sset:srise]))
+        minaz.append(min(DecAz[sset:srise]))
+        riseaz.append(DecAz[srise])
+        setaz.append(DecAz[sset])
+        risealt.append(DecAlt[srise])
+        setalt.append(DecAlt[sset])
+        days.append(DecAlt[srise:sset])
+    return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
                         
