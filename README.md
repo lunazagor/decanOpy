@@ -19,7 +19,7 @@ python3 decanO.py -decan Merak -yearBC 1300 -month 01
 The code will produce a .txt file with the following columns:
 
 ```
-Julian Date|Human Readable Date|Merak Azimuth|Merak Altitude|Sun Azimuth|Sun Altitude
+Julian Date|Human Readable Date|<Decan name> Azimuth|<Decan name> Altitude|Sun Azimuth|Sun Altitude
 ```
 
-The Jupyter notebook (to be uplaoded soon!) containts some examples of how to visualize the data saved in the .txt file. 
+The Jupyter notebook containts some examples of how to visualize the data saved in the .txt file. 
