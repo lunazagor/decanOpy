@@ -23,3 +23,7 @@ Julian Date|Human Readable Date|<Decan name> Azimuth|<Decan name> Altitude|Sun A
 ```
 
 The Jupyter notebook containts some examples of how to visualize the data saved in the .txt file. 
+
+## Accompanying StoryMap
+
+https://storymaps.arcgis.com/stories/077a8fd4c17e4321ab4274672cd143cd
