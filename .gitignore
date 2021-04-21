@@ -9,5 +9,5 @@
 
 # iPynb checkpoints
 .ipynb_checkpoints*
-
+__pychache__
 
