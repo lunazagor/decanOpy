@@ -26,4 +26,6 @@ The Jupyter notebook containts some examples of how to visualize the data saved 
 
 ## Accompanying StoryMap
 
-https://storymaps.arcgis.com/stories/077a8fd4c17e4321ab4274672cd143cd
+The newest version of the StoryMap discussing decanOpy, as presented at the Annual Meeting at ARCE '21:
+
+https://storymaps.arcgis.com/stories/eea3fbc9c05b40948563ffd0ccfab59d
