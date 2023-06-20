@@ -1,6 +1,5 @@
 # gitignore for decanOpy
 
-
 # Outfiles
 *.out
 *.txt
@@ -8,7 +7,7 @@
 # Mac DS files
 .DS_Store
 
-# iPynb checkpoints
+# Python extras
 .ipynb_checkpoints*
 __pychache__
-
+*.pyc
