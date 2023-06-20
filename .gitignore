@@ -3,6 +3,7 @@
 
 # Outfiles
 *.out
+*.txt
 
 # Mac DS files
 .DS_Store
