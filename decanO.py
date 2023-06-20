@@ -2,109 +2,128 @@
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun, Angle, Longitude
 from sunpy.coordinates import frames, sun
+import star_chart_spherical_projection as scsp
 import csv
 import argparse
 import os
 import errno
 
+# supress dubious year warnings 
+import warnings
+warnings.simplefilter('ignore', UserWarning)
 
-###
-##### Parse the arguments
-###
+def precessedCoords(declist, year):
+    '''
+    A function to find the Dec and RA of list of decans accounting for the precession of the equinoxes.
+    Inputs: 
+        declist = list of named decans to querry
+        year = 
+    Outputs:
+        obj_list = list of decans' RAs and Decs as an astropy SkyCoords object
+        year = year BC for which to return data
+        hd_list = a variable to set the header for the csv file
+    '''
+    # querry available stars from scsp
+    # note: need to fix this for stars not listed by name in scsp!
+    years_since = -2000 - int(year)
+    star_dict = scsp.finalPositionOfStars(declist, yearSince2000=years_since)
+    star_names = star_dict.keys()
+
+    # set up lists 
+    obj_list = []
+    hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
+
+    # calculate objects
+    for name in star_names:
+        ra_temp = star_dict[name]["RA"].split(".")
+        # Check RA transform?
+        RA = Angle(ra_temp[0] + "h" + ra_temp[1] + "m" + ra_temp[2] + "s").deg
+        dec_temp = star_dict[name]["Declination"]
+        Dec = Angle(dec_temp, unit="deg").deg
+        obj = SkyCoord(ra=RA, dec=Dec, unit="deg")
+        obj_list.append(obj)
+        hd_list.append(name + " Azimuth")
+        hd_list.append(name + " Altitude")
+    return(obj_list, hd_list)
+
+def calc_altaz(ra, dec, loc, time):
+    '''
+    Find the Altitude and Azimuth of a given star at a given place and time.
+    Inputs: 
+        ra = right ascension (in decimal hours)
+        dec = declination (in degrees)
+        loc = location (astropy EarthLocation object)
+        time = time (Julian date)
+    Outputs:
+        alt = altitude of star
+        az = azimuth of star
+    '''
+    # calculations taken from
+    # https://www.cloudynights.com/topic/587586-azimuth-altitude-calculation-script/
+    #
+    # time and location
+    obs_time =  Time(time, format = 'jd', location=loc)
+    lat = loc.lat
+    lon = loc.lon
+    # local time
+    lst = obs_time.sidereal_time('mean').hour
+    gst = lst - (lon.deg / 15.0)
+    lha = Angle((gst - ra) * 15 + lon.deg, unit = "deg")
+    # alt and az
+    alt = altitude(lha, dec, lat)
+    az = azimuth(lha, dec, lat)
+
+    return(alt, az)
 
 
-parser = argparse.ArgumentParser('My program')
-parser.add_argument('-decan', '--one')
-parser.add_argument('-yearBC', '--two')
-parser.add_argument('-month', '--three')
+def altitude(lha, dec, lat):
+    '''
+    Find altitude given local hour angle, declination, 
+    and latitude of Earth location.
+    '''
+    a = np.cos(lha.rad)
+    b = np.cos(dec.rad)
+    c = np.cos(Angle(lat, unit = "deg").rad)
+    d = np.sin(dec.rad)
+    e = np.sin(Angle(lat, unit = "deg").rad)
 
-args = parser.parse_args()
-
-
-decan = str(args.one)
-year = str(args.two)
-month = str(args.three)
-
-###
-##### Determining the when and where
-###
-
-## Set Location on Earth 
-
-Luxor = EarthLocation(lat=25.68*u.deg, lon=31.55*u.deg, height=89*u.m)
-
-## Get coordinates of Object
-
-obj = SkyCoord.from_name(decan)
-
-## Length of month 
-
-len31 = ['01', '03', '05', '07', '08', '10', '12']
-len30 = ['02', '04', '06', '09', '11']
-
-if month in len31:
-	end = 31
-else:
-	end = 30
-
-## Times and dates
-
-start = (Time('-0' + year + '-' + month + '-01T00:00:00.000').jd)
-days = start + 1 * np.arange(0, 365) # iterate for a year 
-dhour = 0.04166666674427688
-d4min = 0.00277777784503996
-hours = dhour * np.arange(0, 24)
-minutes = d4min * np.arange(0, 15)
-
-
-###
-##### Writing the .txt file
-###
-direct = os.getcwd() # current working directory
-ditect = direct + '/DecanLists' # directory where the .txt files go
-
-if not os.path.exists(os.path.dirname(direct)):
-    try:
-        os.makedirs(os.path.dirname(direct))
-    except OSError as exc: # Guard against race condition
-        if exc.errno != errno.EEXIST:
-            raise
-
-
-filename = direct + "/" + decan + month + year + "BC.txt"
-
-with open(filename, "w", newline='') as file:
-    writer = csv.writer(file, delimiter='|')
-    writer.writerow(["Object: " + decan])
-    writer.writerow(["Luxor = EarthLocation(lat=25.68*u.deg, lon=31.55*u.deg, height=89*u.m)"])
-    writer.writerow(["\n"])
-    writer.writerow(["Julian Date", " Human Readable Date",
-                     decan + " Azimuth", decan + " Altitude", "Sun Azimuth", "Sun Altitude"])
-    for day in days:
-        for hour in hours:
-            for mins in minutes:
-                temptime = day + hour + mins
-                # decan coords
-                info = obj.transform_to(AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor))
-                # Sun coords
-                c = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime=Time(temptime, format = 'jd'), observer="earth", frame=frames.Helioprojective)
-                frame_altaz = AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor)
-                sun_altaz = c.transform_to(frame_altaz)
-                # Write to file
-                writer.writerow(['{0:.16f}'.format(np.round(temptime, 10)),
-                                 str(Time(temptime, format = 'jd').fits),
-                                 '{0.az:.3}'.format(info),
-                                 '{0.alt:.3}'.format(info),
-                                 '{0:.1f}'.format(sun_altaz.T.az),
-                                 '{0:.1f}'.format(sun_altaz.T.alt)])
+    ret = np.arcsin(a*b*c + d*e)
+    return Angle(ret, unit="rad").deg
 
 
 
-###
-##### Functions for data processing
-###
+def azimuth(lha, dec, lat):
+    '''
+    Find azimuth given local hour angle, declination, 
+    and latitude of Earth location.
+    '''
+    a = -1 * np.sin(lha.rad)
+    b = np.tan(dec.rad)
+    c = np.cos(Angle(lat, unit = "deg").rad)
+    d = np.sin(Angle(lat, unit = "deg").rad)
+    e = np.cos(lha.rad)
+
+    ret = np.arctan2(a, (b * c - d*e))
+    if ret < 0:
+        ret += 2 * np.pi
+    return Angle(ret, unit="rad").deg
+
+
+def dS_offset(year):
+    '''
+    Introduce offset number of days to align Stellarium and Astropy JD. 
+    Tested for 1600 to 1100 BCE. 
+    '''
+    if int(year) > 1499:
+        dS_off = -14 
+    elif int(year) < 1201:    
+        dS_off = -11
+    else:
+        dS_off = 1 - (int(year) / 100.0)
+    return dS_off
+
 
 
 # Import Decan Data
@@ -249,4 +268,126 @@ def MaxMinAltAz(direct, filename, jd, sunriseset):
         setalt.append(DecAlt[sset])
         days.append(DecAlt[srise:sset])
     return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
-                        
+
+
+
+
+# ##
+# #### Parse the arguments
+# ##
+
+
+# parser = argparse.ArgumentParser('My program')
+# parser.add_argument('-d','--decan', nargs='+', type=str, required=True)
+# parser.add_argument('-yBC', '--yearBC', required=True)
+# parser.add_argument('-m', '--month', required=False, default = "01")
+# parser.add_argument('-mS', '--matchStellariumJD', required=False, default=True)
+
+# args = parser.parse_args()
+
+# decans = list(args.decan)
+# year = str(args.yearBC)
+# month = str(args.month)
+# matchStellariumJD = bool(args.matchStellariumJD)
+
+
+# # ##
+# # #### Determining the when and where
+# # ##
+
+# # # Set Location on Earth 
+
+# Luxor = EarthLocation(lat=25.6989*u.deg, lon=32.6421*u.deg, height=89*u.m) # data matched to Stellarium
+
+# # # Length of month 
+
+# len31 = ['01', '03', '05', '07', '08', '10', '12']
+# len30 = ['02', '04', '06', '09', '11']
+
+# if month in len31:
+# 	end = 31
+# else:
+# 	end = 30
+
+# # # Times and dates
+
+# # hour and minute steps
+# dhour = 0.04166666674427688
+# d4min = 0.00277777784503996
+
+
+# # introduce offset of a few days to get jd in line with Stellarium:
+# dS = 0
+# if matchStellariumJD:
+#     dS = dS_offset(year)
+
+# # star time to jd with offset for local sidereal time
+# start = (Time('-0' + year + '-' + month + '-01T00:00:00.000', scale="local", location = Luxor).jd) - (Luxor.lon.deg/15.0) * dhour + dS
+
+# # values to iterate over
+# #days = start + 1 * np.arange(0, 365) # iterate for a year 
+# days = start + 1 * np.arange(0, 1) # iterate for a day to debug 
+# hours = dhour * np.arange(0, 24)
+# minutes = d4min * np.arange(0, 15)
+
+# ###
+# ##### Writing the .txt file
+# ###
+# direct = os.getcwd() # current working directory
+# direct = direct + '/DecanLists' # directory where the .txt files go
+
+# if not os.path.exists(os.path.dirname(direct)):
+#     try:
+#         os.makedirs(os.path.dirname(direct))
+#     except OSError as exc: # Guard against race condition
+#         if exc.errno != errno.EEXIST:
+#             raise
+
+# # name the txt file
+# # note to self: should I just make it a csv or something?
+
+# filename = direct + "/" + "testdata" + month + year + "BC.txt"
+
+# ## Get coordinates of decans while accounting for precession of the equinoxes
+
+# #obj = SkyCoord.from_name(decan)
+# (obj_list, hd_list) = precessedCoords(decans, year)
+
+
+# # start writing the file
+
+# with open(filename, "w", newline='') as file:
+#     writer = csv.writer(file, delimiter='|')
+#     #writer.writerow(["Object: " + str(decans)])
+#     #writer.writerow(["Luxor = EarthLocation(lat=25.68*u.deg, lon=31.55*u.deg, height=89*u.m)"])
+#     #writer.writerow(["\n"])
+#     writer.writerow(hd_list) # write headers
+#     for day in days:
+#         for hour in hours:
+#             for mins in minutes:
+#                 temptime = day + hour + mins
+#                 # Sun coords
+#                 c = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime=Time(temptime, format = 'jd'), observer="earth", frame=frames.Helioprojective)
+#                 frame_altaz = AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor)
+#                 sun_altaz = c.transform_to(frame_altaz)
+#                 # decan coords
+#                 info = ['{0:.16f}'.format(np.round(temptime, 10)),
+#                                  str(Time(temptime - dS + (Luxor.lon.deg/15.0) * dhour, format = 'jd').fits), # local time and date
+#                                  '{0:.1f}'.format(sun_altaz.T.az)[0:-4], # [0:-4] get rid of trailing " deg" for later analysis
+#                                  '{0:.1f}'.format(sun_altaz.T.alt)[0:-4]]
+#                 for obj in obj_list:
+#                     (alt, az) = calc_altaz(Angle(obj.ra, unit="deg").hour, obj.dec, Luxor, temptime)
+#                     info.append('{0:.3f}'.format(az))
+#                     info.append('{0:.3f}'.format(alt))
+#                     # info_temp = obj.transform_to(AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor))
+#                     # info.append('{0.az:.1f}'.format(info_temp)[0:-4]) 
+#                     # info.append('{0.alt:.1f}'.format(info_temp)[0:-4]) 
+#                 # Write to file
+#                 writer.writerow(info)
+
+
+
+# # ##
+# # #### Functions for data processing
+# # ##
+
