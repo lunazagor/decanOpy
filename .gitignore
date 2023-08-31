@@ -2,7 +2,8 @@
 
 # Outfiles
 *.out
-*.txt
+DecanLists/testdata*
+SynRSC/synRSC_*.xlsx
 
 # Mac DS files
 .DS_Store
@@ -15,6 +16,3 @@
 .ipynb_checkpoints*
 __pychache__
 *.pyc
-
-# All Excel Files
-*.xlsx
