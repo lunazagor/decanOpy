@@ -1,6 +1,6 @@
 # decanOpy
 
-decanOpy is an AstroPy-powered code which generates celestial coordinates of a given Egyptian decan in 4-minute intervals for a given year BCE. 
+decanOpy is an AstroPy-powered code that generates celestial coordinates of a given Egyptian decan in 4-minute intervals for a given year BCE. 
 
 ## Install
 
@@ -10,7 +10,7 @@ Clone the files from this repo from the command line as
 $ git clone https://github.com/lunazagor/decanOpy
 ```
 
-or just download repo through GitHub.com. The list of required Python modules is listed in requirements.txt. 
+or just download repo through GitHub.com. The list of required Python modules is contained in requirements.txt. 
 
 ## Generating Stellar Data
 
