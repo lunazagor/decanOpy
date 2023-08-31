@@ -4,9 +4,13 @@ decanOpy is an AstroPy-powered code which generates celestial coordinates of a g
 
 ## Install
 
+Clone the files from this repo from the command line as
+
 ```
 $ git clone https://github.com/lunazagor/decanOpy
 ```
+
+or just download repo through GitHub.com. The list of required Python modules is listed in requirements.txt. 
 
 ## Generating Stellar Data
 
