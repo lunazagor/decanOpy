@@ -56,8 +56,8 @@ if matchStellariumJD:
 start = (Time('-0' + year + '-' + month + '-01T00:00:00.000', scale="local", location = Luxor).jd) - (Luxor.lon.deg/15.0) * dhour + dS
 
 # values to iterate over
-days = start + 1 * np.arange(0, 365) # iterate for a year 
-#days = start + 1 * np.arange(0, 1) # iterate for a day (for debugging)
+#days = start + 1 * np.arange(0, 365) # iterate for a year 
+days = start + 1 * np.arange(0, 1) # iterate for a day (for debugging)
 hours = dhour * np.arange(0, 24)
 minutes = d4min * np.arange(0, 15)
 

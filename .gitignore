@@ -7,7 +7,14 @@
 # Mac DS files
 .DS_Store
 
+# Private folders
+/DevTests
+/Notes
+
 # Python extras
 .ipynb_checkpoints*
 __pychache__
 *.pyc
+
+# All Excel Files
+*.xlsx

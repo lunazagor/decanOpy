@@ -38,7 +38,6 @@ def precessedCoords(declist, year):
     # calculate objects
     for name in star_names:
         ra_temp = star_dict[name]["RA"].split(".")
-        # Check RA transform?
         RA = Angle(ra_temp[0] + "h" + ra_temp[1] + "m" + ra_temp[2] + "s").deg
         dec_temp = star_dict[name]["Declination"]
         Dec = Angle(dec_temp, unit="deg").deg
@@ -270,7 +269,28 @@ def MaxMinAltAz(direct, filename, jd, sunriseset):
     return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
 
 
-
+def fakeCoords(num):
+    '''
+    A function to create Dec and RA structures of fake stars for testing. 
+    The input num refers to the number of stars created and must be an integer.
+    '''
+    # initalize empty key lists
+    star_names = []
+    obj_list = []
+    hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
+    # Sirius Dec
+    Dec = Angle(-17.849335700373032, unit="deg").deg
+    # populate both
+    for i in range(0, num):
+        name = "S" + "{:02.0f}".format(i)
+        star_names.append(name)
+        # Sirius RA
+        RA = (65.68749999999999 + 360/num * i) % 360 # stepping by 1 hr = 15 deg mod 360
+        obj = SkyCoord(ra=RA, dec=Dec, unit="deg")
+        obj_list.append(obj)
+        hd_list.append(name + " Azimuth")
+        hd_list.append(name + " Altitude")
+    return(obj_list, hd_list)
 
 # ##
 # #### Parse the arguments
