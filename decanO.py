@@ -269,23 +269,29 @@ def MaxMinAltAz(direct, filename, jd, sunriseset):
     return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
 
 
-def fakeCoords(num):
+def mockCoords_SiriusLike(num, year, dec_off):
     '''
-    A function to create Dec and RA structures of fake stars for testing. 
-    The input num refers to the number of stars created and must be an integer.
+    A function to create Dec and RA structures of fake stars for testing Sirius-like behavior. 
+    The input "num" refers to the number of stars created and must be an integer. 
+    The input "year" designates the year BC for performing precession on Sirius coords. 
+    The input "dec_off" is an optional offset in Dec for Sirius, assumed to be in degrees.
     '''
     # initalize empty key lists
     star_names = []
     obj_list = []
     hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
     # Sirius Dec
-    Dec = Angle(-17.849335700373032, unit="deg").deg
+    (obj_list, hd_list) = precessedCoords(["Sirius"], year) # get Sirius data for given year BC
+    obj = obj_list[0] #extract Sirius data from list strucure
+    RA0 = Angle(obj.ra, unit="deg").hour
+    Dec = Angle(obj.dec, unit="deg") + Angle(dec_off, unit = "deg")
+    #Dec = Angle(-17.849335700373032, unit="deg").deg
     # populate both
     for i in range(0, num):
         name = "S" + "{:02.0f}".format(i)
         star_names.append(name)
         # Sirius RA
-        RA = (65.68749999999999 + 360/num * i) % 360 # stepping by 1 hr = 15 deg mod 360
+        RA = (RA0 + 360/num * i) % 360 # stepping by 1 hr = 15 deg mod 360
         obj = SkyCoord(ra=RA, dec=Dec, unit="deg")
         obj_list.append(obj)
         hd_list.append(name + " Azimuth")

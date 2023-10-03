@@ -23,14 +23,16 @@ parser = argparse.ArgumentParser('My program')
 #parser.add_argument('-d','--decan', nargs='+', type=str, required=True)
 parser.add_argument('-yBC', '--yearBC', required=True)
 parser.add_argument('-N', '--num', required=False, default="48")
+parser.add_argument('-dOff', '--decOffset', required=False, default = "0")
 parser.add_argument('-m', '--month', required=False, default = "01")
 parser.add_argument('-matchS', '--matchStellariumJD', required=False, default=True)
-parser.add_argument('-n', '--name', required=False, default="mock_data")
+parser.add_argument('-n', '--name', required=False, default="mock_data_SiriusLike")
 
 args = parser.parse_args()
 
 year = str(args.yearBC)
 num = int(args.num)
+decOff = float(args.decOffset)
 month = str(args.month)
 matchStellariumJD = bool(args.matchStellariumJD)
 name = str(args.name)
@@ -64,7 +66,7 @@ minutes = d4min * np.arange(0, 15)
 ## Get RA/Dec of decans while accounting for precession of the equinoxes
 # NOTE: scsp uses the Vondrak precession algorithm which doesn't EXACTLY match Stellarium, so some differences are to be expected!
 # Other algorithms may be introduced in the future
-(obj_list, hd_list) = mockCoords(num)
+(obj_list, hd_list) = mockCoords_SiriusLike(num, year, decOff)
 
 
 ###
