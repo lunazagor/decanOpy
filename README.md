@@ -77,12 +77,10 @@ The code has since been updated and is actively being updated still, as will be 
 
 ## To Do
 
-- check stability of storymap / link to PDF if not
-
 - update `decanPlotting.ipynb` so that it's compatible with both real and mock multi-decan data
 
 - allow option for synRSCs in .csv 
 
-- add more options for mock data generation, remove Sirius hardcoding, make --yearBC a useful a parameter
+- add more options for mock data generation: sample a starfield (e.g. as in https://www.shadertoy.com/view/lst3Wn)
+  - in that case, will need altitude bins for synRSC generation
 
-De
