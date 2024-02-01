@@ -5,6 +5,11 @@
 DecanLists/testdata*
 SynRSC/synRSC_*.xlsx
 
+# Actually just all output for now
+*.xlsx
+*.txt
+*.csv
+
 # Mac DS files
 .DS_Store
 
