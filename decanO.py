@@ -5,6 +5,8 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun, Angle, Longitude
 from sunpy.coordinates import frames, sun
 import star_chart_spherical_projection as scsp
+import random
+import pandas as pd
 import csv
 import argparse
 import os
@@ -24,6 +26,7 @@ def precessedCoords(declist, year):
         obj_list = list of decans' RAs and Decs as an astropy SkyCoords object
         year = year BC for which to return data
         hd_list = a variable to set the header for the csv file
+    NOTE: I should change this so it uses SkyCoord(List) instead of List(SkyCoord--it'll be faster)
     '''
     # querry available stars from scsp
     # note: need to fix this for stars not listed by name in scsp!
@@ -269,7 +272,58 @@ def MaxMinAltAz(direct, filename, jd, sunriseset):
     return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
 
 
-def mockCoords_SiriusLike(num, year, dec_off):
+def mockCoords_randomStar():
+    '''
+    Make a single random star in Dec and RA.
+    '''
+    #minimum dec visible 
+    lat = 25.6989 # lat of Luxor in degrees
+    maxnum = 0.5 * (np.cos(np.pi * lat / 180) + 1) # for generating stars visible at Luxor below the hemisphere
+    #select a random point uniformly across a hemisphere +
+    x = random.random()
+    y = random.uniform(0, maxnum) #0-0.5: above horizon, 0.5-1 below horizon
+    phi = np.arccos(2*y-1) - np.pi/2
+    theta = 2 * np.pi * x
+    #mag = random.uniform(1,6) # magnitude of star (if we want it)
+    # make them into RA and Dec
+    RA = Angle(theta * u.radian).hour
+    Dec = Angle(phi * u.radian).deg
+    # obj = SkyCoord(ra=RA, dec=Dec, unit="deg")
+    return (RA, Dec)
+
+def mockCoords_randomStarField(num):
+    '''
+    Make a number = num of random stars in Dec and RA to analyze with decanOpy.
+    It is expected that num < 100, otherwise the naming convention will be wrong. 
+    To add more, change "{:02.0f}" to "{:0X.0f}", where X is the number of digits. 
+    '''
+    # initalize empty key lists
+    star_names = []
+    obj_list = []
+    RA_list = []
+    Dec_list = []
+    mag_list = []
+    hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
+    for i in range(0, num):
+        name = "R" + "{:04.0f}".format(i)
+        star_names.append(name)
+        (RA, Dec) = mockCoords_randomStar()
+        RA_list.append(RA)
+        Dec_list.append(Dec)
+        mag_list.append(round(random.uniform(-1.5, 6), 2))
+        #obj = randomStar()
+        #obj_list.append(obj)
+        hd_list.append(name + " Azimuth")
+        hd_list.append(name + " Altitude")
+    obj_list = SkyCoord(RA_list * u.hour, Dec_list * u.deg)
+    df = pd.DataFrame({"Name" : star_names, 
+                "RA" : RA_list,
+                "Dec": Dec_list,
+                "Mag": mag_list})  
+    return(obj_list, hd_list, df)    
+
+
+def mockCoords_StarLike(star, num, year, dec_off):
     '''
     A function to create Dec and RA structures of fake stars for testing Sirius-like behavior. 
     The input "num" refers to the number of stars created and must be an integer. 
@@ -281,7 +335,7 @@ def mockCoords_SiriusLike(num, year, dec_off):
     obj_list = []
     hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
     # Sirius Dec
-    (obj_list, hd_list) = precessedCoords(["Sirius"], year) # get Sirius data for given year BC
+    (obj_list, hd_list) = precessedCoords([star], year) # get Sirius data for given year BC
     obj = obj_list[0] #extract Sirius data from list strucure
     RA0 = Angle(obj.ra, unit="deg").hour
     Dec = Angle(obj.dec, unit="deg") + Angle(dec_off, unit = "deg")
@@ -297,6 +351,42 @@ def mockCoords_SiriusLike(num, year, dec_off):
         hd_list.append(name + " Azimuth")
         hd_list.append(name + " Altitude")
     return(obj_list, hd_list)
+
+def randomStar():
+    '''
+    Make a single random star in Dec and RA.
+    '''
+    #select a random point uniformly across a hemisphere
+    x = random.random()
+    y = random.uniform(0, 0.5) #0-0.5: above horizon, 0.5-1 below horizon
+    phi = np.arccos(2*y-1) - np.pi/2
+    theta = 2 * np.pi * x
+    #mag = random.uniform(1,6) # magnitude of star (if we want it)
+    # make them into RA and Dec
+    RA = Angle(theta * u.radian).hour
+    Dec = Angle(phi * u.radian).deg
+    obj = SkyCoord(ra=RA, dec=Dec, unit="deg")
+    return obj
+
+def randomStarField(num):
+    '''
+    Make a number = num of random stars in Dec and RA to analyze with decanOpy.
+    It is expected that num < 100, otherwise the naming convention will be wrong. 
+    To add more, change "{:02.0f}" to "{:0X.0f}", where X is the number of digits. 
+    '''
+    # initalize empty key lists
+    star_names = []
+    obj_list = []
+    hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
+    for i in range(0, num):
+        name = "R" + "{:02.0f}".format(i)
+        star_names.append(name)
+        obj = randomStar()
+        obj_list.append(obj)
+        hd_list.append(name + " Azimuth")
+        hd_list.append(name + " Altitude")
+    return(obj_list, hd_list)    
+
 
 # ##
 # #### Parse the arguments
