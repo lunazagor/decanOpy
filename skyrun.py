@@ -19,8 +19,8 @@ warnings.simplefilter('ignore', UserWarning)
 # ##
 # #### Parse the arguments
 # ##
-parser = argparse.ArgumentParser('My program')
-parser.add_argument('-d','--decan', nargs='+', type=str, required=True)
+parser = argparse.ArgumentParser('Skyrun')
+parser.add_argument('-d','--decan', nargs='+', type=str, required=False, default = [])
 parser.add_argument('-yBC', '--yearBC', required=True)
 parser.add_argument('-m', '--month', required=False, default = "01")
 parser.add_argument('-matchS', '--matchStellariumJD', required=False, default=True)
@@ -56,8 +56,8 @@ if matchStellariumJD:
 start = (Time('-0' + year + '-' + month + '-01T00:00:00.000', scale="local", location = Luxor).jd) - (Luxor.lon.deg/15.0) * dhour + dS
 
 # values to iterate over
-#days = start + 1 * np.arange(0, 365) # iterate for a year 
-days = start + 1 * np.arange(0, 1) # iterate for a day (for debugging)
+days = start + 1 * np.arange(0, 365) # iterate for a year 
+#days = start + 1 * np.arange(0, 1) # iterate for a day (for debugging)
 hours = dhour * np.arange(0, 24)
 minutes = d4min * np.arange(0, 15)
 
@@ -70,7 +70,7 @@ minutes = d4min * np.arange(0, 15)
 ##### Writing the .txt file
 ###
 direct = os.getcwd() # current working directory
-direct = direct + '/DecanLists' # directory where the .txt files go
+direct = direct + '/StarLists/RealSky/' # directory where the .txt files go
 
 if not os.path.exists(os.path.dirname(direct)):
     try:
