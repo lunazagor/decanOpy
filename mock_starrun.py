@@ -19,7 +19,7 @@ warnings.simplefilter('ignore', UserWarning)
 # ##
 # #### Parse the arguments
 # ##
-parser = argparse.ArgumentParser('My program')
+parser = argparse.ArgumentParser('Mock Star Run')
 #parser.add_argument('-d','--decan', nargs='+', type=str, required=True)
 parser.add_argument('-s', '--star', required=True)
 parser.add_argument('-yBC', '--yearBC', required=True)
