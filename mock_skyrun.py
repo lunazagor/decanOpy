@@ -21,9 +21,9 @@ warnings.simplefilter('ignore', UserWarning)
 # ##
 # #### Parse the arguments
 # ##
-parser = argparse.ArgumentParser('My program')
+parser = argparse.ArgumentParser('Mock Sky Runner')
 parser.add_argument('-yBC', '--yearBC', required=True)
-parser.add_argument('-N', '--num', required=False, default="200")
+parser.add_argument('-N', '--num', required=False, default="518") # number of H-series stars
 parser.add_argument('-m', '--month', required=False, default = "01")
 parser.add_argument('-matchS', '--matchStellariumJD', required=False, default=True) #JD offset to match stellarium
 parser.add_argument('-n', '--name', required=False) 

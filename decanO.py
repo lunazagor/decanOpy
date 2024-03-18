@@ -1,10 +1,14 @@
 ### Import Statements
+
+from __future__ import division
+
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun, Angle, Longitude
 from sunpy.coordinates import frames, sun
 import star_chart_spherical_projection as scsp
+from scipy.stats import gaussian_kde
 import random
 import pandas as pd
 import csv
@@ -272,6 +276,33 @@ def MaxMinAltAz(direct, filename, jd, sunriseset):
     return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
 
 
+def kde(x, x_grid, bandwidth=0.2, **kwargs):
+    """Kernel Density Estimation with Scipy"""
+    kde = gaussian_kde(x, bw_method=bandwidth / x.std(ddof=1), **kwargs)
+    return kde.evaluate(x_grid)
+
+
+def generate_rand_from_pdf(pdf, x_grid, num):
+    cdf = np.cumsum(pdf)
+    cdf = cdf / cdf[-1]
+    values = np.random.rand(num)
+    value_bins = np.searchsorted(cdf, values)
+    random_from_cdf = x_grid[value_bins]
+    return random_from_cdf
+    
+
+def generate_mags_from_Hdist(num):
+    # get data 
+    direct = os.getcwd()
+    name_df = pd.read_csv(direct + '/StarLists/RealSky/ICs/star_data_names.csv', index_col=None, header=0, names=['Name', 'RA', 'Dec', 'Mag'])
+    data = name_df['Mag'].values #np.random.normal(size=1000)
+    # create kernel density estimator pdf
+    x_grid = np.linspace(min(data), max(data), num)
+    kdepdf = kde(data, x_grid, bandwidth=0.1)
+    random_from_kde = generate_rand_from_pdf(kdepdf, x_grid, num)
+    # return an array of num magnitudes
+    return random_from_kde
+
 def mockCoords_randomStar():
     '''
     Make a single random star in Dec and RA.
@@ -302,7 +333,7 @@ def mockCoords_randomStarField(num):
     obj_list = []
     RA_list = []
     Dec_list = []
-    mag_list = []
+    mag_list = np.round(generate_mags_from_Hdist(num), 2)
     hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
     for i in range(0, num):
         name = "R" + "{:04.0f}".format(i)
@@ -310,7 +341,7 @@ def mockCoords_randomStarField(num):
         (RA, Dec) = mockCoords_randomStar()
         RA_list.append(RA)
         Dec_list.append(Dec)
-        mag_list.append(round(random.uniform(-1.5, 6), 2))
+        #mag_list.append(round(random.uniform(-1.5, 6), 2))
         #obj = randomStar()
         #obj_list.append(obj)
         hd_list.append(name + " Azimuth")
@@ -320,8 +351,7 @@ def mockCoords_randomStarField(num):
                 "RA" : RA_list,
                 "Dec": Dec_list,
                 "Mag": mag_list})  
-    return(obj_list, hd_list, df)    
-
+    return(obj_list, hd_list, df)  
 
 def mockCoords_StarLike(star, num, year, dec_off):
     '''
