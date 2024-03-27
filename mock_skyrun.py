@@ -79,7 +79,7 @@ minutes = d4min * np.arange(0, 15)
 ##### Writing the .txt file
 ###
 direct = os.getcwd() # current working directory
-direct = direct + '/DecanLists' # directory where the .txt files go
+direct = direct + '/StarLists/RandSky' # directory where the .txt files go
 
 if not os.path.exists(os.path.dirname(direct)):
     try:
