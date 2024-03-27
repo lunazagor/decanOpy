@@ -417,6 +417,15 @@ def randomStarField(num):
         hd_list.append(name + " Altitude")
     return(obj_list, hd_list)    
 
+# def readMockCoords(path):
+#     '''
+#     Read mock coordinates from an existing random starfield. 
+#     '''
+#     df = pd.read_csv(path, sep=',')
+#     RA_list = list(df['RA'])
+#     Dec_list = list(df['Dec'])
+#     obj_list = SkyCoord(RA_list * u.hour, Dec_list * u.deg)
+#     return(obj_list)  
 
 # ##
 # #### Parse the arguments
