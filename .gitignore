@@ -14,8 +14,7 @@ SynRSC/synRSC_*.xlsx
 .DS_Store
 
 # Private folders
-/DevTests
-/Notes
+/dev
 
 # Python extras
 .ipynb_checkpoints*
