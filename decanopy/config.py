@@ -1,19 +1,32 @@
 from pathlib import Path
 
-# Project root (you may eventually want this to be dynamic)
+# === Project Root ===
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
-# Static packaged data
+# === Packaged Static Data (within decanopy/) ===
 PACKAGE_DATA = ROOT_DIR / "decanopy" / "data"
 DEFAULT_STAR_DATA = PACKAGE_DATA / "star_data.csv"
 DEFAULT_STAR_NAMES = PACKAGE_DATA / "star_data_names.csv"
 
-# User input/output
-INPUT_DIR = ROOT_DIR / "data" / "input" / "skyflow"
-OUTPUT_SKYFLOW = ROOT_DIR / "data" / "output" / "skyflow"
-OUTPUT_RSC = ROOT_DIR / "data" / "output" / "rsc"
+# === User Input Data ===
+USER_INPUT_SKYFLOW_DIR = ROOT_DIR / "data" / "input" / "skyflow"
+USER_INPUT_REAL_SKY = USER_INPUT_SKYFLOW_DIR / "real_sky"
+USER_INPUT_RAND_SKY = USER_INPUT_SKYFLOW_DIR / "rand_sky"
 
-# Output by sky type
-REAL_SKY = OUTPUT_SKYFLOW / "real_sky"
-RAND_SKY = OUTPUT_SKYFLOW / "rand_sky"
-STAR_LIKE = OUTPUT_SKYFLOW / "star_like"
+# === Skyflow Outputs (generated star motions) ===
+OUTPUT_SKYFLOW_DIR = ROOT_DIR / "data" / "output" / "skyflow"
+SKYFLOW_OUTPUT_REAL_SKY = OUTPUT_SKYFLOW_DIR / "real_sky"
+SKYFLOW_OUTPUT_RAND_SKY = OUTPUT_SKYFLOW_DIR / "rand_sky"
+SKYFLOW_OUTPUT_STAR_LIKE = OUTPUT_SKYFLOW_DIR / "star_like"
+
+# === RSC Outputs (analysis results based on skyflow outputs) ===
+OUTPUT_RSC_DIR = ROOT_DIR / "data" / "output" / "rsc"
+RSC_OUTPUT_REAL_SKY = OUTPUT_RSC_DIR / "real_sky"
+RSC_OUTPUT_RAND_SKY = OUTPUT_RSC_DIR / "rand_sky"
+RSC_OUTPUT_STAR_LIKE = OUTPUT_RSC_DIR / "star_like"
+
+# === Default observing locale latitude===
+# Luxor, Egypt
+OBS_LAT = 25.6989   # degrees
+OBS_LON = 32.6421   # degrees
+OBS_HEIGHT = 89     # meters
