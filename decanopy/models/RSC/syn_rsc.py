@@ -658,3 +658,176 @@ def write_synRSC_to_excel(writepath, writename, horizon, alt_window, bsize, gsiz
     df_dict5 = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
     df_dict5.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)    
     writer.close()
+
+
+def initialize_sky(
+    filepath,
+    star_rise_deg: float = 10,
+    sun_rise_deg: float = -12
+):
+    """
+    Initialize the sky model by reading star position data and calculating rise/set times and visibility.
+
+    Args:
+        filepath (str or Path): Path to the star position data file.
+        star_rise_deg (float): Altitude (deg) above horizon to define star rise. The default is 10.
+        sun_rise_deg (float): Sun altitude (deg) to define sunrise/set. The default is -12 (nautical twilight). 
+
+    Returns:
+        skydict: Dictionary containing all relevant arrays and lists.
+    """
+
+    # Read data
+    decan_output = pd.read_csv(filepath, sep="|")
+    header = decan_output.columns
+
+    # Star names
+    starlist = [name[0:-8] for name in header[4:-1:2]]
+
+    # Standard data
+    jd = decan_output[header[0]].to_numpy()
+    hrd = decan_output[header[1]]
+    sunAz = decan_output[header[2]].to_numpy()
+    sunAlt = decan_output[header[3]].to_numpy()
+
+    # Star data
+    num_decs = (len(header) - 4) // 2
+    starsAz = np.stack([decan_output[header[4 + 2 * i]].to_numpy() for i in range(num_decs)])
+    starsAlt = np.stack([decan_output[header[5 + 2 * i]].to_numpy() for i in range(num_decs)])
+
+    # Sunrise and sunset times
+    sunRise, sunSet = StarRiseSet(jd, sunAlt, sun_rise_deg)
+    sunAzSet = sunAz[sunSet]
+
+    # Star rise/set/visibility/max altitude
+    starAzRiseList = np.zeros((num_decs, len(sunRise)))
+    starVisList = np.full((num_decs, len(sunRise)), True)
+    starMaxAltList = np.zeros((num_decs, len(sunRise)-1))
+
+    for i in range(num_decs):
+        min_alt = np.min(starsAlt[i])
+        max_alt = np.max(starsAlt[i])
+        if min_alt >= star_rise_deg:
+            # Circumpolar
+            starVisList[i, :] = True
+            starMaxAltList[i, :] = max_alt
+        elif max_alt < star_rise_deg:
+            # Never rises
+            starVisList[i, :] = False
+            starMaxAltList[i, :] = max_alt
+        else:
+            # Sometimes visible
+            starRise, starSet = StarRiseSet(jd, starsAlt[i], star_rise_deg)
+            starAzRise = starsAz[i, starRise]
+            starAzRiseList[i, :] = starAzRise
+            maxAlt, starVis = isStarVisible(sunSet, sunRise, starsAlt[i])
+            starVisList[i, :] = starVis
+            starMaxAltList[i, :] = maxAlt
+
+    skydict =  {
+        "jd": jd,
+        "hrd": hrd,
+        "sunAz": sunAz,
+        "sunAlt": sunAlt,
+        "starlist": starlist,
+        "starsAz": starsAz,
+        "starsAlt": starsAlt,
+        "sunRise": sunRise,
+        "sunSet": sunSet,
+        "sunAzSet": sunAzSet,
+        "starAzRiseList": starAzRiseList,
+        "starVisList": starVisList,
+        "starMaxAltList": starMaxAltList
+    }
+
+    return skydict
+
+def init_synRSC_excel_writer(writepath, writename, horizon, alt_window, bsize, gsize):
+    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+    workbook = writer.book
+    sheets = {}
+    for name in ['RSCs', 'Mag Select', 'Name Select', 'DBC Select', 'Full Choice']:
+        ws = workbook.add_worksheet(name)
+        writer.sheets[name] = ws
+        sheets[name] = ws
+    cell_format = workbook.add_format()
+    cell_format.set_font_size(11)
+    # Metadata
+    sheets['RSCs'].write(0, 0, f"horizon is {horizon}", cell_format)
+    sheets['RSCs'].write(1, 0, f"alt window is {alt_window}", cell_format)
+    sheets['RSCs'].write(2, 0, f"bsize = {bsize}", cell_format)
+    sheets['RSCs'].write(3, 0, f"gsize = {gsize}", cell_format)
+    return writer, workbook, sheets, cell_format
+
+
+def write_rsc_table(i, df, sheets, writer, cell_format):
+    df.to_excel(writer, sheet_name='RSCs', startrow=i * 15 + 5, startcol=0)
+    sheets['RSCs'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_mag_select(i, df, mag_dict, sheets, writer, cell_format):
+    df_mag = mag_data(df, mag_dict)
+    df_mag.to_excel(writer, sheet_name='Mag Select', startrow=i * 15 + 5, startcol=0)
+    sheets['Mag Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_name_select(i, df, mag_dict, known_stars_dict, sheets, writer, cell_format):
+    df_name, known_stars_dict = name_or_mag_data(df, mag_dict, known_stars_dict)
+    df_name.to_excel(writer, sheet_name='Name Select', startrow=i * 15 + 5, startcol=0)
+    sheets['Name Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+    sheets['Name Select'].write(4, 10, f"Number of known stars = {len(known_stars_dict)}", cell_format)
+    df_dict = pd.DataFrame(list(known_stars_dict.items()), columns=["H-index", "'Known' index"])
+    df_dict.to_excel(writer, sheet_name='Name Select', startrow=5, startcol=10, index=False)
+    return known_stars_dict
+
+def write_dbc_select(i, df, dbc_table, sheets, writer, cell_format):
+    df_dbc = dbc_data(df, dbc_table)
+    df_dbc.to_excel(writer, sheet_name='DBC Select', startrow=i * 15 + 5, startcol=0)
+    sheets['DBC Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_full_choice(i, df, mag_dict, dbc_table, sheets, writer, cell_format):
+    df_choices, choices_dict = full_choice_data(df, mag_dict, dbc_table)
+    df_choices.to_excel(writer, sheet_name='Full Choice', startrow=i * 15 + 5, startcol=0)
+    sheets['Full Choice'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+    return choices_dict
+
+def write_choices_summary(all_choices_dict, writer):
+    df_dict = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
+    df_dict.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)
+
+
+def write_synRSC_to_excel(
+    writepath, writename, horizon, alt_window, bsize, gsize, skydict, mag_dict):
+
+    # initalize excel writer
+    writer, workbook, sheets, cell_format = init_synRSC_excel_writer(
+        writepath, writename, horizon, alt_window, bsize, gsize
+    )
+    # initialize helper dictionaries
+    known_stars_dict = {}
+    all_choices_dict = {}
+    dbc_dict = {i: {} for i in range(24)}
+        
+    # loop over 24 tables
+    for i in range(24):
+        date = i * 15 # every 15 days
+        # main synRSC table & update dbc dict
+        df, dbc_table = synRSC(date, alt_window, horizon, bsize, gsize,
+                            skydict["sunSet"], skydict["sunRise"], skydict["starlist"], skydict["starsAz"], skydict["starsAlt"], skydict["starVisList"]   )
+        dbc_dict[i] = dbc_table # add to main dbc dictionary
+        write_rsc_table(i, df, sheets, writer, cell_format)
+        
+        # write mag select 
+        write_mag_select(i, df, mag_dict, sheets, writer, cell_format)
+        
+        # write name select & update known stars dict
+        known_stars_dict = write_name_select(i, df, mag_dict, known_stars_dict, sheets, writer, cell_format)
+        
+        # write dbc select 
+        write_dbc_select(i, df, dbc_table, sheets, writer, cell_format)
+        
+        # write full choice & update all choices dict
+        choices_dict = write_full_choice(i, df, mag_dict, dbc_table, sheets, writer, cell_format)
+        for k, v in choices_dict.items():
+            all_choices_dict[k] = all_choices_dict.get(k, 0) + v
+    # write summary of all choices
+    write_choices_summary(all_choices_dict, writer)
+    writer.close()
