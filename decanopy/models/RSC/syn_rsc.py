@@ -224,8 +224,23 @@ def synRSC(date_ind, alt_window, horizon, bsize, gsize, sunSet, sunRise, starlis
     df.columns = [-3, -2, -1, 0, 1, 2, 3]
     return df, dbc_dict
 
-
-
+def mag_select_distinct(row_list, ind_list, mag_dict, df_mag):
+    '''
+    Sort stars by magnitude and return only the lowest magnitude star in the row.  
+    If there are multiple stars with the same lowest magnitude, pick one randomly.
+    '''
+    # sort and filter candidates by magnitude
+    (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, mag_dict) # sort
+    row_mag_list = [mag_dict[x] for x in row_list]  # get magnitudes of sorted stars
+    row_list, ind_list = sorted_magnitude_filter(row_list, ind_list, row_mag_list, 0.0) # filter to only lowest mag value
+    # how many stars?
+    if len(row_list) == 1: # only one star in row
+        return (row_list[0], ind_list[0])
+    elif len(row_list) > 1: # more than one star in row
+        # pick randomly
+        pick = np.random.randint(0, len(row_list))
+        return (row_list[pick], ind_list[pick])
+    
 def mag_data(df, mag_dict):
     '''
     Given a data frame made with synRSC and a name-to-magnitude value dictionary, 
@@ -236,19 +251,17 @@ def mag_data(df, mag_dict):
     df_mag = pd.DataFrame(data=np.empty((13,7), dtype=str))
     # iterate through df of all possible stars and select for magnitude
     for i in range(0, 13):
-        sname = ""
-        min_mag = 10 # all human visible magnitudes should be higher than this 
-        # iterate through columns in row ( = horizon bins)
+        row_list = [] 
+        ind_list = []
+        # extract all stars in one row
         for j in range(-3, 4):
-            j *= -1 # testing something 
-            dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
-            for item in dlist:
-                if mag_dict[item] < min_mag:
-                    min_mag = mag_dict[item] # update brightest available star
-                    cind = j + 3 # column index
-                    sname = item # star name 
-        if len(sname) > 1:                     
-            df_mag.at[i, cind] = sname
+            dlist = list(filter(None, df[j][i].split(' ')))
+            row_list += dlist
+            ind_list += [j] * len(dlist)
+        # select by magnitude
+        (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_mag)   
+        df_mag.at[i, ind + 3] = star
+    # name columns
     df_mag.columns = [-3, -2, -1, 0, 1, 2, 3]
     return(df_mag)
 
@@ -266,54 +279,126 @@ def name_or_mag_data(df, mag_dict, known_stars):
     df_magname = pd.DataFrame(data=np.empty((13,7), dtype=str))
     # iterate through df of all possible stars and select for "known stars", then magnitude
     for i in range(0, 13): # for each row
-        row_list = [] #list of stars in row
+        row_list = [] 
+        ind_list = [] 
         for j in range(-3, 4): # iterate through columns in row ( = horizon bins)
             dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
             row_list += dlist
+            ind_list += [j] * len(dlist)
+        # check if there are any known stars in row
         scand_list = [] # list of known candidate stars 
-        for scand in row_list:
-            if scand in known_stars:
-                scand_list.append(scand)     
+        scand_list_ind = [] # list of known candidate star indices
+        for scind in range(len(row_list)):
+            if row_list[scind] in known_stars:
+                scand_list.append(row_list[scind])
+                scand_list_ind.append(ind_list[scind])
         # CASE 1: no previously known stars, choose by magnitude and add to known star list 
-        if len(scand_list) == 0: 
-            sname=''
-            min_mag = 10 # all human visible magnitudes should be higher than this 
-            for j in range(-3, 4):
-                dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
-                for item in dlist:
-                    if mag_dict[item] < min_mag:
-                        min_mag = mag_dict[item] # update brightest available star
-                        cind = j + 3 # column index
-                        sname = item # star name 
-            if len(sname) > 1: # if it's found *no* stars, leave blank                
-                df_magname.at[i, cind] = sname  
-                known_stars[sname] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary           
+        if len(scand_list) == 0:
+            # select by magnitude
+            (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_magname)   
+            df_magname.at[i, ind + 3] = star
+            known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
         # CASE 2: one known star, choose that one
         elif len(scand_list) == 1:
-            sname = scand_list[0]
-            for j in range(-3, 4): # iterate through columns in row ( = horizon bins)
-                dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
-                if sname in dlist:
-                    cind = j + 3 # column index
-                    df_magname.at[i, cind] = sname 
-                    #known_stars[sname] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
+            df_magname.at[i,  scand_list_ind[0] + 3] = scand_list[0] 
         # CASE 3: several known stars, choose the brightest one 
         else:
-            # first find the brightest available star
-            min_mag = 10 # all human visible magnitudes should be higher than this 
-            for scand in scand_list:
-                if mag_dict[scand] < min_mag:
-                    min_mag = mag_dict[scand] # update brightest available star
-                    sname = scand # star name 
-                    #known_stars[sname] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
-            for j in range(-3, 4): # now find position of star
-                dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
-                if sname in dlist:
-                    cind = j + 3 # column index
-                    df_magname.at[i, cind] = sname 
+            # find the brightest available star and add to known star list
+            (star, ind) = mag_select_distinct(scand_list, scand_list_ind, mag_dict, df_magname)   
+            df_magname.at[i, ind + 3] = star
+            # known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
     # return                 
     df_magname.columns = [-3, -2, -1, 0, 1, 2, 3]
     return(df_magname, known_stars)    
+
+# def mag_data(df, mag_dict):
+#     '''
+#     Given a data frame made with synRSC and a name-to-magnitude value dictionary, 
+#     this function will select the brightest star in each row (aka horizon bin) to 
+#     create a magnitude-selected Ramesside Star Clock.  
+#     '''
+#     # data frame to save magnitude-selected data
+#     df_mag = pd.DataFrame(data=np.empty((13,7), dtype=str))
+#     # iterate through df of all possible stars and select for magnitude
+#     for i in range(0, 13):
+#         sname = ""
+#         min_mag = 10 # all human visible magnitudes should be higher than this 
+#         # iterate through columns in row ( = horizon bins)
+#         for j in range(-3, 4):
+#             #j *= -1 # testing something 
+#             dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
+#             for item in dlist:
+#                 if mag_dict[item] < min_mag:
+#                     min_mag = mag_dict[item] # update brightest available star
+#                     cind = j + 3 # column index
+#                     sname = item # star name 
+#         if len(sname) > 1:                     
+#             df_mag.at[i, cind] = sname
+#     df_mag.columns = [-3, -2, -1, 0, 1, 2, 3]
+#     return(df_mag)
+
+
+# def name_or_mag_data(df, mag_dict, known_stars):
+#     '''
+#     Given a data frame made with synRSC, a name-to-magnitude value dictionary, and a known-star dictionary, 
+#     this function will select the known brightest star in each row (aka horizon bin) to 
+#     create a magnitude-selected Ramesside Star Clock;
+#     if no known stars, it defaults to brightest. 
+
+#     BEWARE: call this the alpha version of this function; it is the FARTHEST thing from elegant or optimized.   
+#     '''
+#     # data frame to save magnitude-selected data
+#     df_magname = pd.DataFrame(data=np.empty((13,7), dtype=str))
+#     # iterate through df of all possible stars and select for "known stars", then magnitude
+#     for i in range(0, 13): # for each row
+#         row_list = [] #list of stars in row
+#         for j in range(-3, 4): # iterate through columns in row ( = horizon bins)
+#             dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
+#             row_list += dlist
+#         scand_list = [] # list of known candidate stars 
+#         for scand in row_list:
+#             if scand in known_stars:
+#                 scand_list.append(scand)     
+#         # CASE 1: no previously known stars, choose by magnitude and add to known star list 
+#         if len(scand_list) == 0: 
+#             sname=''
+#             min_mag = 10 # all human visible magnitudes should be higher than this 
+#             for j in range(-3, 4):
+#                 dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
+#                 for item in dlist:
+#                     if mag_dict[item] < min_mag:
+#                         min_mag = mag_dict[item] # update brightest available star
+#                         cind = j + 3 # column index
+#                         sname = item # star name 
+#             if len(sname) > 1: # if it's found *no* stars, leave blank                
+#                 df_magname.at[i, cind] = sname  
+#                 known_stars[sname] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary           
+#         # CASE 2: one known star, choose that one
+#         elif len(scand_list) == 1:
+#             sname = scand_list[0]
+#             for j in range(-3, 4): # iterate through columns in row ( = horizon bins)
+#                 dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
+#                 if sname in dlist:
+#                     cind = j + 3 # column index
+#                     df_magname.at[i, cind] = sname 
+#                     #known_stars[sname] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
+#         # CASE 3: several known stars, choose the brightest one 
+#         else:
+#             # first find the brightest available star
+#             min_mag = 10 # all human visible magnitudes should be higher than this 
+#             for scand in scand_list:
+#                 if mag_dict[scand] < min_mag:
+#                     min_mag = mag_dict[scand] # update brightest available star
+#                     sname = scand # star name 
+#                     #known_stars[sname] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
+#             for j in range(-3, 4): # now find position of star
+#                 dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
+#                 if sname in dlist:
+#                     cind = j + 3 # column index
+#                     df_magname.at[i, cind] = sname 
+#     # return                 
+#     df_magname.columns = [-3, -2, -1, 0, 1, 2, 3]
+#     return(df_magname, known_stars)    
 
 # main and helper functions for full-choice algorithm
 
@@ -451,3 +536,125 @@ def dbc_data(df, dbc_dict):
             df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[1]] - dbc_dict_row[row_list[0]],2))
     df_dbc.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", "d_dbc"]
     return df_dbc
+
+def initialize_synRSC_excel(writepath, writename, horizon, alt_window, bsize, gsize):
+    """
+    Helper to initialize Excel writer, sheets, and formatting for synRSC output.
+    Returns: writer, workbook, worksheet, worksheet2, worksheet3, worksheet4, worksheet5, format
+    """
+    # Create Excel Writer Object from Pandas  
+    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+    workbook = writer.book
+
+    # Format
+    cell_format = workbook.add_format()
+    cell_format.set_font_size(11)
+
+    # Create worksheets with all possible stars 
+    rsc_wsheet = workbook.add_worksheet('RSCs')
+    writer.sheets['RSCs'] = rsc_wsheet
+    # Write metadata
+    rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
+    rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
+    rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
+    rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
+
+    # add choices sheets
+    mag_wsheet = workbook.add_worksheet('Mag Select')
+    writer.sheets['Mag Select'] = mag_wsheet
+
+    name_wsheet = workbook.add_worksheet('Name Select')
+    writer.sheets['Name Select'] = name_wsheet
+
+    dbc_wsheet = workbook.add_worksheet('DBC Select')
+    writer.sheets['DBC Select'] = dbc_wsheet
+
+    fc_wsheet = workbook.add_worksheet('Full Choice')
+    writer.sheets['Full Choice'] = fc_wsheet
+
+    # return all objects
+    return writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet
+
+
+def write_synRSC_to_excel(writepath, writename, horizon, alt_window, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList, mag_dict):
+    
+    # # Initialize Excel writer and sheets
+    # ## TODO: do I really need cell_format?
+    # writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet = initialize_synRSC_excel(
+    #     writepath, writename, horizon, alt_window, bsize, gsize
+    # )
+
+    # Create Excel Writer Object from Pandas  
+    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+    workbook = writer.book
+
+    # Format
+    cell_format = workbook.add_format()
+    cell_format.set_font_size(11)
+
+    # Create worksheets with all possible stars 
+    rsc_wsheet = workbook.add_worksheet('RSCs')
+    writer.sheets['RSCs'] = rsc_wsheet
+    # Write metadata
+    rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
+    rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
+    rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
+    rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
+
+    # add choices sheets
+    mag_wsheet = workbook.add_worksheet('Mag Select')
+    writer.sheets['Mag Select'] = mag_wsheet
+
+    name_wsheet = workbook.add_worksheet('Name Select')
+    writer.sheets['Name Select'] = name_wsheet
+
+    dbc_wsheet = workbook.add_worksheet('DBC Select')
+    writer.sheets['DBC Select'] = dbc_wsheet
+
+    fc_wsheet = workbook.add_worksheet('Full Choice')
+    writer.sheets['Full Choice'] = fc_wsheet
+
+    # create dictionaries to store data
+    known_stars_dict = {}
+    all_choices_dict = {}
+    dbc_dict = {i: {} for i in range(24)}  # initialize dbc dict for each table
+
+    # loop over 24 tables
+    for i in range(0, 24):
+        date = i * 15 # days from first day in decan data
+        # all star candidates
+        df, dbc_table = synRSC(date, alt_window, horizon, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList)
+        dbc_dict[i] = dbc_table # store dbc_table for each table date
+        df.to_excel(writer, sheet_name='RSCs',startrow= i * 15 + 5, startcol=0)   
+        rsc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+
+        #add mag data
+        df_mag = mag_data(df, mag_dict)
+        df_mag.to_excel(writer, sheet_name='Mag Select',startrow= i * 15 + 5, startcol=0) 
+        mag_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+
+        # add name or mag data
+        (df_name, known_stars_dict) = name_or_mag_data(df, mag_dict, known_stars_dict)
+        df_name.to_excel(writer, sheet_name='Name Select',startrow= i * 15 + 5, startcol=0) 
+        name_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+        name_wsheet.write(4,  10, "Number of known stars = " + str(len((known_stars_dict))), format)
+        df_dict3 = pd.DataFrame(list(known_stars_dict.items()), columns=["H-index", "'Known' index"])
+        df_dict3.to_excel(writer, sheet_name='Name Select', startrow=5, startcol=10, index=False)
+
+        # add dbc data 
+        df_dbc = dbc_data(df, dbc_dict[i])
+        df_dbc.to_excel(writer, sheet_name='DBC Select', startrow= i * 15 + 5, startcol=0) 
+        dbc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+
+        # add choices data 
+        df_choices, choices_dict  = full_choice_data(df, mag_dict, dbc_table)
+        df_choices.to_excel(writer, sheet_name='Full Choice', startrow= i * 15 + 5, startcol=0) 
+        fc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+        
+        # dynamically update all_choices_dict
+        for k, v in choices_dict.items():
+            all_choices_dict[k] = all_choices_dict.get(k, 0) + v
+    # write final all_choices_dict and close    
+    df_dict5 = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
+    df_dict5.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)    
+    writer.close()
