@@ -265,18 +265,16 @@ def mag_data(df, mag_dict):
     df_mag.columns = [-3, -2, -1, 0, 1, 2, 3]
     return(df_mag)
 
-
 def name_or_mag_data(df, mag_dict, known_stars):
     '''
     Given a data frame made with synRSC, a name-to-magnitude value dictionary, and a known-star dictionary, 
     this function will select the known brightest star in each row (aka horizon bin) to 
-    create a magnitude-selected Ramesside Star Clock;
-    if no known stars, it defaults to brightest. 
-
-    BEWARE: call this the alpha version of this function; it is the FARTHEST thing from elegant or optimized.   
+    create a name-selected Ramesside Star Clock WITHOUT table duplicates ;
+    if no known stars, it defaults to brightest.  
     '''
     # data frame to save magnitude-selected data
     df_magname = pd.DataFrame(data=np.empty((13,7), dtype=str))
+    tablist = [] # track stars in this table to avoid duplicates
     # iterate through df of all possible stars and select for "known stars", then magnitude
     for i in range(0, 13): # for each row
         row_list = [] 
@@ -285,6 +283,10 @@ def name_or_mag_data(df, mag_dict, known_stars):
             dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
             row_list += dlist
             ind_list += [j] * len(dlist)
+        ## filter out stars from THIS table and their indices
+        indices_to_remove = [i for i, item in enumerate(row_list) if item in tablist]
+        row_list = [item for i, item in enumerate(row_list) if i not in indices_to_remove]
+        ind_list = [item for i, item in enumerate(ind_list) if i not in indices_to_remove]
         # check if there are any known stars in row
         scand_list = [] # list of known candidate stars 
         scand_list_ind = [] # list of known candidate star indices
@@ -292,7 +294,12 @@ def name_or_mag_data(df, mag_dict, known_stars):
             if row_list[scind] in known_stars:
                 scand_list.append(row_list[scind])
                 scand_list_ind.append(ind_list[scind])
-        # CASE 1: no previously known stars, choose by magnitude and add to known star list 
+        # # filter out known stars and their indices
+        # indices_to_remove = [i for i, item in enumerate(scand_list) if item in tablist]
+        # scand_list = [item for i, item in enumerate(scand_list) if i not in indices_to_remove]
+        # scand_list_ind = [item for i, item in enumerate(scand_list_ind) if i not in indices_to_remove]
+        # now choose star to add to table
+        # CASE 1: no previously known stars, choose by magnitude and add to known star list  
         if len(scand_list) == 0:
             # select by magnitude
             (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_magname)   
@@ -300,16 +307,63 @@ def name_or_mag_data(df, mag_dict, known_stars):
             known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
         # CASE 2: one known star, choose that one
         elif len(scand_list) == 1:
-            df_magname.at[i,  scand_list_ind[0] + 3] = scand_list[0] 
+            star = scand_list[0]
+            df_magname.at[i,  scand_list_ind[0] + 3] = star
         # CASE 3: several known stars, choose the brightest one 
         else:
             # find the brightest available star and add to known star list
             (star, ind) = mag_select_distinct(scand_list, scand_list_ind, mag_dict, df_magname)   
             df_magname.at[i, ind + 3] = star
             # known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
+        # add chosen start to tablist 
+        tablist.append(star)
     # return                 
     df_magname.columns = [-3, -2, -1, 0, 1, 2, 3]
-    return(df_magname, known_stars)    
+    return(df_magname, known_stars)   
+  
+
+# def name_or_mag_data(df, mag_dict, known_stars):
+#     '''
+#     Given a data frame made with synRSC, a name-to-magnitude value dictionary, and a known-star dictionary, 
+#     this function will select the known brightest star in each row (aka horizon bin) to 
+#     create a name-selected Ramesside Star Clock ALLOWING table duplicates;
+#     if no known stars, it defaults to brightest. 
+#     '''
+#     # data frame to save magnitude-selected data
+#     df_magname = pd.DataFrame(data=np.empty((13,7), dtype=str))
+#     # iterate through df of all possible stars and select for "known stars", then magnitude
+#     for i in range(0, 13): # for each row
+#         row_list = [] 
+#         ind_list = [] 
+#         for j in range(-3, 4): # iterate through columns in row ( = horizon bins)
+#             dlist = list(filter(None, df[j][i].split(' '))) # split into star names and filter out empty strings 
+#             row_list += dlist
+#             ind_list += [j] * len(dlist)
+#         # check if there are any known stars in row
+#         scand_list = [] # list of known candidate stars 
+#         scand_list_ind = [] # list of known candidate star indices
+#         for scind in range(len(row_list)):
+#             if row_list[scind] in known_stars:
+#                 scand_list.append(row_list[scind])
+#                 scand_list_ind.append(ind_list[scind])
+#         # CASE 1: no previously known stars, choose by magnitude and add to known star list 
+#         if len(scand_list) == 0:
+#             # select by magnitude
+#             (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_magname)   
+#             df_magname.at[i, ind + 3] = star
+#             known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
+#         # CASE 2: one known star, choose that one
+#         elif len(scand_list) == 1:
+#             df_magname.at[i,  scand_list_ind[0] + 3] = scand_list[0] 
+#         # CASE 3: several known stars, choose the brightest one 
+#         else:
+#             # find the brightest available star and add to known star list
+#             (star, ind) = mag_select_distinct(scand_list, scand_list_ind, mag_dict, df_magname)   
+#             df_magname.at[i, ind + 3] = star
+#             # known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
+#     # return                 
+#     df_magname.columns = [-3, -2, -1, 0, 1, 2, 3]
+#     return(df_magname, known_stars)    
 
 # def mag_data(df, mag_dict):
 #     '''
