@@ -14,73 +14,20 @@ or just download repo through GitHub.com. The list of required Python modules is
 
 ## Generating Stellar Data
 
-The code takes two mandatory inputs: the name of the decan (or list of decan names) and the year BCE. An example run might look like
+The module `decanopy.flow` contains all the machinery to generate a sky (real_sky, rand_sky, or star_like) and recreate the movement around the sky over a calendar year. This part of the code is currently being refactored and is unstable, but we have two output files to work on in the meantime. 
 
-```
-python3 run.py --decan Sirius Saiph Rigel Hamal Rasalhague Sheratan --yearBC 1400 
-```
+## Creating synthetic Ramesside Star Clocks 
 
-The complete set of flags the code can take are 
+Inside the module `decanopy.models.RSC` are the functions needed to generate synthetic RSCs for comparison with N&P data. An example notebook for calling the functions is stored in `/notebooks/synRSCgenerator.ipynb`, and may be updated as the relevant functions change. 
 
-```
-python3 run.py --decan [names] --yearBC [year] --month ["01"] --matchStellariumJD [True] --name ["data"]
-```
-
-where the last three are the first month of the calculation (January by default), whether to match JD dates to Stellarium (these are offset from Astropy by 10-ish days between 1600 and 1100 BCE; True by default), and the name of the resulting file. 
-
-The code will produce a .txt file in `/DecanLists` with the following columns:
-
-```
-Julian Date|Human Readable Date|<Decan name> Azimuth|<Decan name> Altitude|....|<Decan name> Altitude|Sun Azimuth|Sun Altitude
-```
-
-Alternatively, the user can crate Sirius-like mock data (currently same dec as Sirius, but equally-distributed RAs) by running
-
-```
-python3 mockrun.py --yearBC 1300 --num 48
-```  
-
-where num is the number of stars to equally distribute. WARNING: the dec and RA of Sirius are currently hard-coded to be at BCE 1300, so the yearBC parameter will actually not change anything. The unlisted optional flags may also require debugging.  
+I highly recommend making a working copy of the notebook in `/notebooks` or `/dev` (which ships with the repo but its contents are kept private). This way, it won't get rewritten or cause version issues whenever a `git pull` is called!  
 
 ## Visualizing Data
 
-The Jupyter notebook `decanPlotting.ipynb` contains some examples of how to visualize the data saved in the .txt file. Some of its contents may be deprecated. 
-
-The notebook `mock_synRSCs.ipynb` allows the user to generate synthetic Ramesside star clocks, saved in the folder `/SynRSC`. These are automatically saved as `.xlsx` files, so Microsoft Excel is currently necessary to read them. 
-The code takes two mandatory inputs: the name(s) of the decan(s) and the year BCE. An example run might look like
-
-```
-python3 run.py --decan Sirius Saiph Rigel Hamal Rasalhague Sheratan --yearBC 1300 
-```
-
-The complete set of flags the code can take are 
-
-```
-python3 run.py --decan [names] --yearBC [year] --month ["01"] --matchStellariumJD [True] --name ["data"]
-```
-where the last three are the first month of the calculation (January by default), whether to match JD dates to Stellarium (these are offset from Astropy by 10-ish days between 1600 and 1100 BCE; True by default), and the name of the resulting file. 
-
-The code will produce a .txt file with the following columns:
-
-```
-Julian Date|Local Date and Time|Sun Azimuth|Sun Altitude|[decan#0] Azimuth|[decan#0] Altitude|[decan#1] Azimuth|[decan#1] Altitude ...
-```
-with the last two columns repeating for the number of decans listed. The Jupyter Notebook contains some examples of visualizing the data saved in the .txt file. 
-
-## Accompanying StoryMap
-
-The newest version of the StoryMap discussing decanOpy, as presented at the Annual Meeting at ARCE '21:
-
-https://storymaps.arcgis.com/stories/eea3fbc9c05b40948563ffd0ccfab59d
-
-The code has since been updated and is actively being updated still, as will be documented further. 
+TBD in `decanopy.visualization`. 
 
 ## To Do
 
-- update `decanPlotting.ipynb` so that it's compatible with both real and mock multi-decan data
+Create a better README and proper docs, for one!
 
-- allow option for synRSCs in .csv 
-
-- add more options for mock data generation: sample a starfield (e.g. as in https://www.shadertoy.com/view/lst3Wn)
-  - in that case, will need altitude bins for synRSC generation
 
