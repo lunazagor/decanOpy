@@ -183,13 +183,10 @@ def name_or_mag_data(df, mag_dict, known_stars):
             if row_list[scind] in known_stars:
                 scand_list.append(row_list[scind])
                 scand_list_ind.append(ind_list[scind])
-        # # filter out known stars and their indices
-        # indices_to_remove = [i for i, item in enumerate(scand_list) if item in tablist]
-        # scand_list = [item for i, item in enumerate(scand_list) if i not in indices_to_remove]
-        # scand_list_ind = [item for i, item in enumerate(scand_list_ind) if i not in indices_to_remove]
-        # now choose star to add to table
-        # CASE 1: no previously known stars, choose by magnitude and add to known star list  
-        if len(scand_list) == 0:
+        if len(row_list) == 0:
+            df_magname.at[i, 3] = "" # if no stars in row, leave blank
+            #print("Blank row found!")
+        elif len(scand_list) == 0:
             # select by magnitude
             (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_magname)   
             df_magname.at[i, ind + 3] = star
