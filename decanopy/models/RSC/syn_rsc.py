@@ -1,120 +1,11 @@
-## Some of these functions should ultimately go elsewhere!! 
+# functions for making synthetic Ramesside Star Clocks
+# NOTE: cosorted_by_dict() should maybe go into utils.py or something at some point 
+
 import numpy as np
 from pathlib import Path
 import pandas as pd
 from collections import Counter
-
-## Some of these functions should ultimately go elsewhere!! 
-
-
-def StarRiseSet(jd, starAlt, deg):
-    # create return arrays
-    star_rise = np.zeros(int(len(jd)/360), dtype=int)
-    star_set = np.zeros(int(len(jd)/360), dtype=int)
-    # loop through each day
-    for i in range(360, len(jd) + 1, 360):
-        # isolate data for one day
-        dailyStarAlt = starAlt[i - 360 : i]
-        # is the star visible at the beginning of the day
-        starVis = dailyStarAlt[0] > deg
-        # make array of booleans
-        bool_arr = dailyStarAlt > deg   
-        # find two indices of change
-        ind1 = np.argwhere(bool_arr != starVis)[0][0]
-        if len(np.argwhere(bool_arr[ind1:]== starVis)) != 0: # edge case of next index is in next day
-            ind2 = np.argwhere(bool_arr[ind1:]== starVis)[0][0] + ind1
-        else:
-            ind2 = 360    
-        # assign indices
-        if starVis:
-            star_set[int((i-360)/360)] = int(-360 + i  + ind1)
-            star_rise[int((i-360)/360)] = int(-360 + i  + ind2)
-        else:
-            star_set[int((i-360)/360)] = int(-360 + i  + ind2)
-            star_rise[int((i-360)/360)] = int(-360 + i  + ind1)
-    return (star_rise, star_set)
-
-def SunRiseSet(jd, SunAlt, deg):
-    
-    '''
-    A function to create a list of indices where the Sun rises and sets in a given year.
-    This is generalized to find the sun above/below soem altitude given in degrees deg.  
-    This is useful for making sure we're tracking nightly, visible motion of the decans.
-    NOTE: as written, this code assumes that data is collected every 4 minutes. 
-    To change this, change number to number of collection intervals per day! (360 = 24 * 60/4)
-    Inputs: 
-        jd = Julian date
-        SunAlt = the altitude of the Sun
-    Outputs:
-        sunriseset = indices of sunrise and sunset in the jd & date columns
-    '''
-    
-    sunriseset = []
-    for i in range(360, len(jd), 360):
-        temp = []
-        for j in range(i - 360, i):
-            if SunAlt[j] <= deg + 0.4 and SunAlt[j] >= deg - 0.4:
-                if len(temp) == 0: 
-                    temp.append(j)
-                elif temp[-1] != j - 1:
-                    temp.append(j)
-        sunriseset.append(temp)
-    return sunriseset
-
-
-def isStarVisible(sunSet, sunRise, starAlt):
-    vis_arr = np.full(365, True)
-    max_alt_arr = np.zeros(364)
-    for i in range(0, 364):
-        maxalt = max(starAlt[sunSet[i]:sunRise[i + 1]])
-        max_alt_arr[i] = maxalt
-        #print(maxalt)
-        if maxalt < 0:
-            vis_arr[i] = False
-    return(max_alt_arr, vis_arr)
-
-
-def MaxMinAltAz(jd, sunriseset, DecAz, DecAlt):
-    
-    '''
-    A function to create lists of minimum and maximum azimuths and altitudes of the decan. 
-    This is useful for making sure we're tracking nightly, visible motion of the decans.
-    Inputs: 
-        direct = string with the directory where the .txt file is located
-        filename = string with name of file (name + month + year)
-        jv = Julian date
-        sunriseset = indices of sunrize and sunset in the jd & date columns
-    Outputs:
-        sunriseset = indices of sunrize and sunset in the jd & date columns
-        days = list of indices when it's daylight 
-        minaz, maxaz = minimum and maximum azimuths of the decan per night
-        minalt, maxalt = minimum and maximum altitudes of the decan per night
-        riseaz, setaz = azimuth of decan at rise & set
-        risealt, setalt = altitude of decan at rise & set
-    '''
-    maxalt = []
-    minalt = []
-    maxaz = []
-    minaz = []
-    riseaz = []
-    setaz = []
-    risealt = []
-    setalt = []
-    days = []
-    for i in range(0, int(len(jd)/360) - 1):
-        sset = sunriseset[i][1]
-        srise = sunriseset[i + 1][0]
-        maxalt.append(max(DecAlt[sset:srise]))
-        minalt.append(min(DecAlt[sset:srise]))
-        maxaz.append(max(DecAz[sset:srise]))
-        minaz.append(min(DecAz[sset:srise]))
-        riseaz.append(DecAz[srise])
-        setaz.append(DecAz[sset])
-        risealt.append(DecAlt[srise])
-        setalt.append(DecAlt[sset])
-        days.append(DecAlt[srise:sset])
-    return(days, minaz, maxaz, minalt, maxalt, riseaz, setaz, risealt, setalt)
-
+from decanopy.io.fileops import clobberCheck
 
 def horizon_altitude_transform(horizon_window, alt_window):
     '''
@@ -160,7 +51,6 @@ def horizonBins(horizon, bsize, gsize):
     # return only those bin and gap indices
     return((horizon_bins[inds], 2))
 
-
 def isStarInWindow(alt_window, starAlt):
     '''
     Function to check whether star is in a given altitude window.
@@ -170,7 +60,6 @@ def isStarInWindow(alt_window, starAlt):
         return(True)
     else:
         return(False)
-
 
 def synRSC1star(date_ind, alt_window, horizon, bsize, gsize, sunSet, sunRise, starName, starAz, starAlt, starVis):
     '''
@@ -320,7 +209,355 @@ def name_or_mag_data(df, mag_dict, known_stars):
     # return                 
     df_magname.columns = [-3, -2, -1, 0, 1, 2, 3]
     return(df_magname, known_stars)   
-  
+
+def cosorted_by_dict(list1, list2, sort_dict, ascending=True):
+    """
+    Co-sorts list1 and list2 based on the values of list1's elements in dict_.
+    Returns the sorted lists.
+    
+    Args:
+        list1: List of keys to sort by dict_ values.
+        list2: List to be co-sorted with list1.
+        dict_: Dictionary mapping elements of list1 to values.
+        ascending: Sort order (default True for ascending).
+    """
+    zipped = sorted(zip(list1, list2), key=lambda x: sort_dict[x[0]], reverse=not ascending)
+    if zipped:
+        list1_sorted, list2_sorted = zip(*zipped)
+        return list(list1_sorted), list(list2_sorted)
+    else:
+        return [], []
+
+def sorted_magnitude_filter(row_list, ind_list, row_mag_list, threshold=0.5):
+    ''' Function to filter out stars that are not within 0.5 mag of the first star.
+        IMPORTANT: this function assumes that row_list and ind_list are already sorted by magnitude!
+    '''    
+    # set threshold for magnitude relative to the first star
+    threshold += row_mag_list[0] 
+    # filter out stars that are not within the threshold
+    keep = [idx for idx, mag in enumerate(row_mag_list) if mag <= threshold]
+    row_list = [row_list[k] for k in keep]
+    ind_list = [ind_list[k] for k in keep]
+    return (row_list, ind_list)
+
+def full_choice_data_row(df, i, mag_dict, dbc_dict):
+    '''
+    Optimized implementation of the full-choice algorithm for one row.
+    '''
+    df_all = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
+    #df_all.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", " d_dbc"]
+
+    row_list = []
+    ind_list = []
+    for j in range(-3, 4):
+        dlist = list(filter(None, df[j][i].split(' ')))
+        row_list += dlist
+        ind_list += [j] * len(dlist)
+    # STEP 0: trivial cases
+    if len(row_list) == 1:      # Only one star in the row
+        df_all.at[i, ind_list[0] + 3] = row_list[0]
+        df_all.at[i, 8] = "S"
+        if abs(ind_list[0] + 3) == 3:   # overwrite if also B3
+            df_all.at[i, 8] = "B3"    
+    elif len(row_list) == 0:    # No stars in the row
+        df_all.at[i, 8] = "D"
+    else:                       # Sort by magnitude
+        #(row_listM, ind_listM) = cosorted_by_magnitude(row_list, ind_list, mag_dict)
+        (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, mag_dict)
+        #if row_listM != row_list or ind_listM != ind_list:
+        #    print("Warning: row_listM and row_list are not equal after sorting by magnitude.")
+        row_mag_list = [mag_dict[x] for x in row_list]  # Get magnitudes of sorted stars
+
+        # STEP A: magnitude cut
+        if row_mag_list[1] - row_mag_list[0] > 0.5: 
+            df_all.at[i, ind_list[0] + 3] = row_list[0]
+            df_all.at[i, 8] = "A"
+            return df_all
+
+        # Filter to only stars within 0.5 mag of the brightest
+        row_list, ind_list = sorted_magnitude_filter(row_list, ind_list, row_mag_list)
+
+        # Count occurrences by absolute bin index
+        abs_counts = Counter(abs(x) for x in ind_list)
+
+        # STEPS B0-B3: bin with exactly one star in order of priority (0, -1/+1, -2/+2,-3/+3)
+        for bin_idx in range(4):
+            if abs_counts[bin_idx] == 1:
+                chosen_idx = [k for k, v in enumerate(ind_list) if abs(v) == bin_idx][0]
+                df_all.at[i, ind_list[chosen_idx] + 3] = row_list[chosen_idx]
+                df_all.at[i, 8] = f"B{bin_idx}"
+                return df_all
+            elif abs_counts[bin_idx] > 1:
+                # If more than one star in this bin, go to STEP C
+                break
+        # STEP C: closest to bin center
+        (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, dbc_dict)
+        df_all.at[i, ind_list[0] + 3] = row_list[0]  # Assign the first star in the sorted list
+        df_all.at[i, 8] = "C"  # Closest to bin center
+        df_all.at[i, 9] = str(np.round(dbc_dict[row_list[1]] - dbc_dict[row_list[0]],2))
+    return df_all
+
+def full_choice_data(df, mag_dict, dbc_dict):
+    '''
+    Calls on full_choice_data_row to process all the rows of a given table. 
+    '''
+    df_out = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
+    choices_dict = {'A': 0, 'B0': 0, 'B1': 0, 'B2': 0, 'B3': 0, 'C': 0, 'D': 0, 'S': 0} # dictionary to count choice types
+    # iterate through each row and apply full_choice_data_row
+    for i in range(0, 13): # for each row
+        df_row = full_choice_data_row(df, i, mag_dict, dbc_dict[i])
+        df_out += df_row
+        choices_dict[df_out.at[i, 8]] += 1
+    df_out.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Choice", " d_dbc"]  
+    return df_out, choices_dict  
+
+def dbc_data(df, dbc_dict):
+    '''
+    Implementation of the algorithm to minimize distance from center of bin. 
+    '''
+    df_dbc = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
+    for i in range(0, 13):
+        row_list = []
+        ind_list = []
+        dbc_dict_row = dbc_dict[i]
+        # make list of candidates
+        for j in range(-3, 4):
+            # list of available stars
+            dlist = list(filter(None, df[j][i].split(' ')))
+            row_list += dlist
+            ind_list += [j] * len(dlist)
+        # make selections
+        if len(row_list)==0:
+            # mark if no star candidates in row
+            df_dbc.at[i, 8] = "D"
+        elif len(row_list)==1:   
+            # only one option 
+            df_dbc.at[i, ind_list[0] + 3] = row_list[0] 
+            df_dbc.at[i, 8] = "S" # note single star
+            df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]]))
+        else: # if 2 or more stars
+            # cosort by dbc
+            (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, dbc_dict_row)
+            df_dbc.at[i, ind_list[0] + 3] = row_list[0]  # Assign the first star in the sorted list
+            df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[1]] - dbc_dict_row[row_list[0]],2))
+    df_dbc.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", "d_dbc"]
+    return df_dbc
+
+def initialize_synRSC_excel(writepath, writename, horizon, alt_window, bsize, gsize):
+    """
+    Helper to initialize Excel writer, sheets, and formatting for synRSC output.
+    Returns: writer, workbook, worksheet, worksheet2, worksheet3, worksheet4, worksheet5, format
+    """
+    # Create Excel Writer Object from Pandas  
+    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+    workbook = writer.book
+
+    # Format
+    cell_format = workbook.add_format()
+    cell_format.set_font_size(11)
+
+    # Create worksheets with all possible stars 
+    rsc_wsheet = workbook.add_worksheet('RSCs')
+    writer.sheets['RSCs'] = rsc_wsheet
+    # Write metadata
+    rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
+    rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
+    rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
+    rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
+
+    # add choices sheets
+    mag_wsheet = workbook.add_worksheet('Mag Select')
+    writer.sheets['Mag Select'] = mag_wsheet
+
+    name_wsheet = workbook.add_worksheet('Name Select')
+    writer.sheets['Name Select'] = name_wsheet
+
+    dbc_wsheet = workbook.add_worksheet('DBC Select')
+    writer.sheets['DBC Select'] = dbc_wsheet
+
+    fc_wsheet = workbook.add_worksheet('Full Choice')
+    writer.sheets['Full Choice'] = fc_wsheet
+
+    # add compare sheet here
+
+    # return all objects
+    return writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet
+
+def init_synRSC_excel_writer(writepath, writename, horizon, alt_window, bsize, gsize):
+    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+    workbook = writer.book
+    sheets = {}
+    for name in ['RSCs', 'Mag Select', 'Name Select', 'DBC Select', 'Full Choice']:
+        ws = workbook.add_worksheet(name)
+        writer.sheets[name] = ws
+        sheets[name] = ws
+    cell_format = workbook.add_format()
+    cell_format.set_font_size(11)
+    # Metadata
+    sheets['RSCs'].write(0, 0, f"horizon is {horizon}", cell_format)
+    sheets['RSCs'].write(1, 0, f"alt window is {alt_window}", cell_format)
+    sheets['RSCs'].write(2, 0, f"bsize = {bsize}", cell_format)
+    sheets['RSCs'].write(3, 0, f"gsize = {gsize}", cell_format)
+    return writer, workbook, sheets, cell_format
+
+def write_rsc_table(i, df, sheets, writer, cell_format):
+    df.to_excel(writer, sheet_name='RSCs', startrow=i * 15 + 5, startcol=0)
+    sheets['RSCs'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_mag_select(i, df, mag_dict, sheets, writer, cell_format):
+    df_mag = mag_data(df, mag_dict)
+    df_mag.to_excel(writer, sheet_name='Mag Select', startrow=i * 15 + 5, startcol=0)
+    sheets['Mag Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_name_select(i, df, mag_dict, known_stars_dict, sheets, writer, cell_format):
+    df_name, known_stars_dict = name_or_mag_data(df, mag_dict, known_stars_dict)
+    df_name.to_excel(writer, sheet_name='Name Select', startrow=i * 15 + 5, startcol=0)
+    sheets['Name Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+    sheets['Name Select'].write(4, 10, f"Number of known stars = {len(known_stars_dict)}", cell_format)
+    df_dict = pd.DataFrame(list(known_stars_dict.items()), columns=["H-index", "'Known' index"])
+    df_dict.to_excel(writer, sheet_name='Name Select', startrow=5, startcol=10, index=False)
+    return known_stars_dict
+
+def write_dbc_select(i, df, dbc_table, sheets, writer, cell_format):
+    df_dbc = dbc_data(df, dbc_table)
+    df_dbc.to_excel(writer, sheet_name='DBC Select', startrow=i * 15 + 5, startcol=0)
+    sheets['DBC Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_full_choice(i, df, mag_dict, dbc_table, sheets, writer, cell_format):
+    df_choices, choices_dict = full_choice_data(df, mag_dict, dbc_table)
+    df_choices.to_excel(writer, sheet_name='Full Choice', startrow=i * 15 + 5, startcol=0)
+    sheets['Full Choice'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+    return choices_dict
+
+def write_choices_summary(all_choices_dict, writer):
+    df_dict = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
+    df_dict.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)
+
+def write_synRSC_to_excel(writename, horizon, alt_window, bsize, gsize, skydict, clobberSave=False):
+
+    # check if file exists and clobber if neede
+    clobberCheck(skydict["writepath"], writename, clobberSave)
+
+    # initalize excel writer
+    writer, workbook, sheets, cell_format = init_synRSC_excel_writer(
+        skydict["writepath"], writename, horizon, alt_window, bsize, gsize
+    )
+    # initialize helper dictionaries
+    known_stars_dict = {}
+    all_choices_dict = {}
+    dbc_dict = {i: {} for i in range(24)}
+
+    # loop over 24 tables
+    for i in range(24):
+        date = i * 15 # every 15 days
+        # main synRSC table & update dbc dict
+        df, dbc_table = synRSC(date, alt_window, horizon, bsize, gsize,
+                            skydict["sunSet"], skydict["sunRise"], skydict["starlist"], skydict["starsAz"], skydict["starsAlt"], skydict["starVisList"])
+        dbc_dict[i] = dbc_table # add to main dbc dictionary
+        write_rsc_table(i, df, sheets, writer, cell_format)
+        
+        # write mag select 
+        write_mag_select(i, df, skydict["mag_dict"], sheets, writer, cell_format)
+        
+        # write name select & update known stars dict
+        known_stars_dict = write_name_select(i, df, skydict["mag_dict"], known_stars_dict, sheets, writer, cell_format)
+        
+        # write dbc select 
+        write_dbc_select(i, df, dbc_table, sheets, writer, cell_format)
+        
+        # write full choice & update all choices dict
+        choices_dict = write_full_choice(i, df, skydict["mag_dict"], dbc_table, sheets, writer, cell_format)
+        for k, v in choices_dict.items():
+            all_choices_dict[k] = all_choices_dict.get(k, 0) + v
+    # write summary of all choices
+    write_choices_summary(all_choices_dict, writer)
+    writer.close()
+
+
+### DEPRECATED VERSIONS BELOW
+
+# def write_synRSC_to_excel(writepath, writename, horizon, alt_window, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList, mag_dict):
+    
+#     # # Initialize Excel writer and sheets
+#     # ## TODO: do I really need cell_format?
+#     # writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet = initialize_synRSC_excel(
+#     #     writepath, writename, horizon, alt_window, bsize, gsize
+#     # )
+
+#     # Create Excel Writer Object from Pandas  
+#     writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+#     workbook = writer.book
+
+#     # Format
+#     cell_format = workbook.add_format()
+#     cell_format.set_font_size(11)
+
+#     # Create worksheets with all possible stars 
+#     rsc_wsheet = workbook.add_worksheet('RSCs')
+#     writer.sheets['RSCs'] = rsc_wsheet
+#     # Write metadata
+#     rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
+#     rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
+#     rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
+#     rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
+
+#     # add choices sheets
+#     mag_wsheet = workbook.add_worksheet('Mag Select')
+#     writer.sheets['Mag Select'] = mag_wsheet
+
+#     name_wsheet = workbook.add_worksheet('Name Select')
+#     writer.sheets['Name Select'] = name_wsheet
+
+#     dbc_wsheet = workbook.add_worksheet('DBC Select')
+#     writer.sheets['DBC Select'] = dbc_wsheet
+
+#     fc_wsheet = workbook.add_worksheet('Full Choice')
+#     writer.sheets['Full Choice'] = fc_wsheet
+
+#     # create dictionaries to store data
+#     known_stars_dict = {}
+#     all_choices_dict = {}
+#     dbc_dict = {i: {} for i in range(24)}  # initialize dbc dict for each table
+
+#     # loop over 24 tables
+#     for i in range(0, 24):
+#         date = i * 15 # days from first day in decan data
+#         # all star candidates
+#         df, dbc_table = synRSC(date, alt_window, horizon, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList)
+#         dbc_dict[i] = dbc_table # store dbc_table for each table date
+#         df.to_excel(writer, sheet_name='RSCs',startrow= i * 15 + 5, startcol=0)   
+#         rsc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+
+#         #add mag data
+#         df_mag = mag_data(df, mag_dict)
+#         df_mag.to_excel(writer, sheet_name='Mag Select',startrow= i * 15 + 5, startcol=0) 
+#         mag_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+
+#         # add name or mag data
+#         (df_name, known_stars_dict) = name_or_mag_data(df, mag_dict, known_stars_dict)
+#         df_name.to_excel(writer, sheet_name='Name Select',startrow= i * 15 + 5, startcol=0) 
+#         name_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+#         name_wsheet.write(4,  10, "Number of known stars = " + str(len((known_stars_dict))), format)
+#         df_dict3 = pd.DataFrame(list(known_stars_dict.items()), columns=["H-index", "'Known' index"])
+#         df_dict3.to_excel(writer, sheet_name='Name Select', startrow=5, startcol=10, index=False)
+
+#         # add dbc data 
+#         df_dbc = dbc_data(df, dbc_dict[i])
+#         df_dbc.to_excel(writer, sheet_name='DBC Select', startrow= i * 15 + 5, startcol=0) 
+#         dbc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+
+#         # add choices data 
+#         df_choices, choices_dict  = full_choice_data(df, mag_dict, dbc_table)
+#         df_choices.to_excel(writer, sheet_name='Full Choice', startrow= i * 15 + 5, startcol=0) 
+#         fc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
+        
+#         # dynamically update all_choices_dict
+#         for k, v in choices_dict.items():
+#             all_choices_dict[k] = all_choices_dict.get(k, 0) + v
+#     # write final all_choices_dict and close    
+#     df_dict5 = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
+#     df_dict5.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)    
+#     writer.close()
 
 # def name_or_mag_data(df, mag_dict, known_stars):
 #     '''
@@ -455,435 +692,3 @@ def name_or_mag_data(df, mag_dict, known_stars):
 #     return(df_magname, known_stars)    
 
 # main and helper functions for full-choice algorithm
-
-def cosorted_by_dict(list1, list2, sort_dict, ascending=True):
-    """
-    Co-sorts list1 and list2 based on the values of list1's elements in dict_.
-    Returns the sorted lists.
-    
-    Args:
-        list1: List of keys to sort by dict_ values.
-        list2: List to be co-sorted with list1.
-        dict_: Dictionary mapping elements of list1 to values.
-        ascending: Sort order (default True for ascending).
-    """
-    zipped = sorted(zip(list1, list2), key=lambda x: sort_dict[x[0]], reverse=not ascending)
-    if zipped:
-        list1_sorted, list2_sorted = zip(*zipped)
-        return list(list1_sorted), list(list2_sorted)
-    else:
-        return [], []
-
-
-def sorted_magnitude_filter(row_list, ind_list, row_mag_list, threshold=0.5):
-    ''' Function to filter out stars that are not within 0.5 mag of the first star.
-        IMPORTANT: this function assumes that row_list and ind_list are already sorted by magnitude!
-    '''    
-    # set threshold for magnitude relative to the first star
-    threshold += row_mag_list[0] 
-    # filter out stars that are not within the threshold
-    keep = [idx for idx, mag in enumerate(row_mag_list) if mag <= threshold]
-    row_list = [row_list[k] for k in keep]
-    ind_list = [ind_list[k] for k in keep]
-    return (row_list, ind_list)
-
-def full_choice_data_row(df, i, mag_dict, dbc_dict):
-    '''
-    Optimized implementation of the full-choice algorithm for one row.
-    '''
-    df_all = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
-    #df_all.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", " d_dbc"]
-
-    row_list = []
-    ind_list = []
-    for j in range(-3, 4):
-        dlist = list(filter(None, df[j][i].split(' ')))
-        row_list += dlist
-        ind_list += [j] * len(dlist)
-    # STEP 0: trivial cases
-    if len(row_list) == 1:      # Only one star in the row
-        df_all.at[i, ind_list[0] + 3] = row_list[0]
-        df_all.at[i, 8] = "S"
-        if abs(ind_list[0] + 3) == 3:   # overwrite if also B3
-            df_all.at[i, 8] = "B3"    
-    elif len(row_list) == 0:    # No stars in the row
-        df_all.at[i, 8] = "D"
-    else:                       # Sort by magnitude
-        #(row_listM, ind_listM) = cosorted_by_magnitude(row_list, ind_list, mag_dict)
-        (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, mag_dict)
-        #if row_listM != row_list or ind_listM != ind_list:
-        #    print("Warning: row_listM and row_list are not equal after sorting by magnitude.")
-        row_mag_list = [mag_dict[x] for x in row_list]  # Get magnitudes of sorted stars
-
-        # STEP A: magnitude cut
-        if row_mag_list[1] - row_mag_list[0] > 0.5: 
-            df_all.at[i, ind_list[0] + 3] = row_list[0]
-            df_all.at[i, 8] = "A"
-            return df_all
-
-        # Filter to only stars within 0.5 mag of the brightest
-        row_list, ind_list = sorted_magnitude_filter(row_list, ind_list, row_mag_list)
-
-        # Count occurrences by absolute bin index
-        abs_counts = Counter(abs(x) for x in ind_list)
-
-        # STEPS B0-B3: bin with exactly one star in order of priority (0, -1/+1, -2/+2,-3/+3)
-        for bin_idx in range(4):
-            if abs_counts[bin_idx] == 1:
-                chosen_idx = [k for k, v in enumerate(ind_list) if abs(v) == bin_idx][0]
-                df_all.at[i, ind_list[chosen_idx] + 3] = row_list[chosen_idx]
-                df_all.at[i, 8] = f"B{bin_idx}"
-                return df_all
-            elif abs_counts[bin_idx] > 1:
-                # If more than one star in this bin, go to STEP C
-                break
-        # STEP C: closest to bin center
-        (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, dbc_dict)
-        df_all.at[i, ind_list[0] + 3] = row_list[0]  # Assign the first star in the sorted list
-        df_all.at[i, 8] = "C"  # Closest to bin center
-        df_all.at[i, 9] = str(np.round(dbc_dict[row_list[1]] - dbc_dict[row_list[0]],2))
-    return df_all
-
-def full_choice_data(df, mag_dict, dbc_dict):
-    '''
-    Calls on full_choice_data_row to process all the rows of a given table. 
-    '''
-    df_out = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
-    choices_dict = {'A': 0, 'B0': 0, 'B1': 0, 'B2': 0, 'B3': 0, 'C': 0, 'D': 0, 'S': 0} # dictionary to count choice types
-    # iterate through each row and apply full_choice_data_row
-    for i in range(0, 13): # for each row
-        df_row = full_choice_data_row(df, i, mag_dict, dbc_dict[i])
-        df_out += df_row
-        choices_dict[df_out.at[i, 8]] += 1
-    df_out.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Choice", " d_dbc"]  
-    return df_out, choices_dict  
-
-
-def dbc_data(df, dbc_dict):
-    '''
-    Implementation of the algorithm to minimize distance from center of bin. 
-    '''
-    df_dbc = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
-    for i in range(0, 13):
-        row_list = []
-        ind_list = []
-        dbc_dict_row = dbc_dict[i]
-        # make list of candidates
-        for j in range(-3, 4):
-            # list of available stars
-            dlist = list(filter(None, df[j][i].split(' ')))
-            row_list += dlist
-            ind_list += [j] * len(dlist)
-        # make selections
-        if len(row_list)==0:
-            # mark if no star candidates in row
-            df_dbc.at[i, 8] = "D"
-        elif len(row_list)==1:   
-            # only one option 
-            df_dbc.at[i, ind_list[0] + 3] = row_list[0] 
-            df_dbc.at[i, 8] = "S" # note single star
-            df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]]))
-        else: # if 2 or more stars
-            # cosort by dbc
-            (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, dbc_dict_row)
-            df_dbc.at[i, ind_list[0] + 3] = row_list[0]  # Assign the first star in the sorted list
-            df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[1]] - dbc_dict_row[row_list[0]],2))
-    df_dbc.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", "d_dbc"]
-    return df_dbc
-
-def initialize_synRSC_excel(writepath, writename, horizon, alt_window, bsize, gsize):
-    """
-    Helper to initialize Excel writer, sheets, and formatting for synRSC output.
-    Returns: writer, workbook, worksheet, worksheet2, worksheet3, worksheet4, worksheet5, format
-    """
-    # Create Excel Writer Object from Pandas  
-    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
-    workbook = writer.book
-
-    # Format
-    cell_format = workbook.add_format()
-    cell_format.set_font_size(11)
-
-    # Create worksheets with all possible stars 
-    rsc_wsheet = workbook.add_worksheet('RSCs')
-    writer.sheets['RSCs'] = rsc_wsheet
-    # Write metadata
-    rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
-    rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
-    rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
-    rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
-
-    # add choices sheets
-    mag_wsheet = workbook.add_worksheet('Mag Select')
-    writer.sheets['Mag Select'] = mag_wsheet
-
-    name_wsheet = workbook.add_worksheet('Name Select')
-    writer.sheets['Name Select'] = name_wsheet
-
-    dbc_wsheet = workbook.add_worksheet('DBC Select')
-    writer.sheets['DBC Select'] = dbc_wsheet
-
-    fc_wsheet = workbook.add_worksheet('Full Choice')
-    writer.sheets['Full Choice'] = fc_wsheet
-
-    # add compare sheet here
-
-    # return all objects
-    return writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet
-
-
-def write_synRSC_to_excel(writepath, writename, horizon, alt_window, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList, mag_dict):
-    
-    # # Initialize Excel writer and sheets
-    # ## TODO: do I really need cell_format?
-    # writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet = initialize_synRSC_excel(
-    #     writepath, writename, horizon, alt_window, bsize, gsize
-    # )
-
-    # Create Excel Writer Object from Pandas  
-    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
-    workbook = writer.book
-
-    # Format
-    cell_format = workbook.add_format()
-    cell_format.set_font_size(11)
-
-    # Create worksheets with all possible stars 
-    rsc_wsheet = workbook.add_worksheet('RSCs')
-    writer.sheets['RSCs'] = rsc_wsheet
-    # Write metadata
-    rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
-    rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
-    rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
-    rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
-
-    # add choices sheets
-    mag_wsheet = workbook.add_worksheet('Mag Select')
-    writer.sheets['Mag Select'] = mag_wsheet
-
-    name_wsheet = workbook.add_worksheet('Name Select')
-    writer.sheets['Name Select'] = name_wsheet
-
-    dbc_wsheet = workbook.add_worksheet('DBC Select')
-    writer.sheets['DBC Select'] = dbc_wsheet
-
-    fc_wsheet = workbook.add_worksheet('Full Choice')
-    writer.sheets['Full Choice'] = fc_wsheet
-
-    # create dictionaries to store data
-    known_stars_dict = {}
-    all_choices_dict = {}
-    dbc_dict = {i: {} for i in range(24)}  # initialize dbc dict for each table
-
-    # loop over 24 tables
-    for i in range(0, 24):
-        date = i * 15 # days from first day in decan data
-        # all star candidates
-        df, dbc_table = synRSC(date, alt_window, horizon, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList)
-        dbc_dict[i] = dbc_table # store dbc_table for each table date
-        df.to_excel(writer, sheet_name='RSCs',startrow= i * 15 + 5, startcol=0)   
-        rsc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
-
-        #add mag data
-        df_mag = mag_data(df, mag_dict)
-        df_mag.to_excel(writer, sheet_name='Mag Select',startrow= i * 15 + 5, startcol=0) 
-        mag_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
-
-        # add name or mag data
-        (df_name, known_stars_dict) = name_or_mag_data(df, mag_dict, known_stars_dict)
-        df_name.to_excel(writer, sheet_name='Name Select',startrow= i * 15 + 5, startcol=0) 
-        name_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
-        name_wsheet.write(4,  10, "Number of known stars = " + str(len((known_stars_dict))), format)
-        df_dict3 = pd.DataFrame(list(known_stars_dict.items()), columns=["H-index", "'Known' index"])
-        df_dict3.to_excel(writer, sheet_name='Name Select', startrow=5, startcol=10, index=False)
-
-        # add dbc data 
-        df_dbc = dbc_data(df, dbc_dict[i])
-        df_dbc.to_excel(writer, sheet_name='DBC Select', startrow= i * 15 + 5, startcol=0) 
-        dbc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
-
-        # add choices data 
-        df_choices, choices_dict  = full_choice_data(df, mag_dict, dbc_table)
-        df_choices.to_excel(writer, sheet_name='Full Choice', startrow= i * 15 + 5, startcol=0) 
-        fc_wsheet.write(i * 15 + 5,  0, "Table " + str(i + 1), format)
-        
-        # dynamically update all_choices_dict
-        for k, v in choices_dict.items():
-            all_choices_dict[k] = all_choices_dict.get(k, 0) + v
-    # write final all_choices_dict and close    
-    df_dict5 = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
-    df_dict5.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)    
-    writer.close()
-
-
-def initialize_sky(
-    filepath,
-    star_rise_deg: float = 10,
-    sun_rise_deg: float = -12
-):
-    """
-    Initialize the sky model by reading star position data and calculating rise/set times and visibility.
-
-    Args:
-        filepath (str or Path): Path to the star position data file.
-        star_rise_deg (float): Altitude (deg) above horizon to define star rise. The default is 10.
-        sun_rise_deg (float): Sun altitude (deg) to define sunrise/set. The default is -12 (nautical twilight). 
-
-    Returns:
-        skydict: Dictionary containing all relevant arrays and lists.
-    """
-
-    # Read data
-    decan_output = pd.read_csv(filepath, sep="|")
-    header = decan_output.columns
-
-    # Star names
-    starlist = [name[0:-8] for name in header[4:-1:2]]
-
-    # Standard data
-    jd = decan_output[header[0]].to_numpy()
-    hrd = decan_output[header[1]]
-    sunAz = decan_output[header[2]].to_numpy()
-    sunAlt = decan_output[header[3]].to_numpy()
-
-    # Star data
-    num_decs = (len(header) - 4) // 2
-    starsAz = np.stack([decan_output[header[4 + 2 * i]].to_numpy() for i in range(num_decs)])
-    starsAlt = np.stack([decan_output[header[5 + 2 * i]].to_numpy() for i in range(num_decs)])
-
-    # Sunrise and sunset times
-    sunRise, sunSet = StarRiseSet(jd, sunAlt, sun_rise_deg)
-    sunAzSet = sunAz[sunSet]
-
-    # Star rise/set/visibility/max altitude
-    starAzRiseList = np.zeros((num_decs, len(sunRise)))
-    starVisList = np.full((num_decs, len(sunRise)), True)
-    starMaxAltList = np.zeros((num_decs, len(sunRise)-1))
-
-    for i in range(num_decs):
-        min_alt = np.min(starsAlt[i])
-        max_alt = np.max(starsAlt[i])
-        if min_alt >= star_rise_deg:
-            # Circumpolar
-            starVisList[i, :] = True
-            starMaxAltList[i, :] = max_alt
-        elif max_alt < star_rise_deg:
-            # Never rises
-            starVisList[i, :] = False
-            starMaxAltList[i, :] = max_alt
-        else:
-            # Sometimes visible
-            starRise, starSet = StarRiseSet(jd, starsAlt[i], star_rise_deg)
-            starAzRise = starsAz[i, starRise]
-            starAzRiseList[i, :] = starAzRise
-            maxAlt, starVis = isStarVisible(sunSet, sunRise, starsAlt[i])
-            starVisList[i, :] = starVis
-            starMaxAltList[i, :] = maxAlt
-
-    skydict =  {
-        "jd": jd,
-        "hrd": hrd,
-        "sunAz": sunAz,
-        "sunAlt": sunAlt,
-        "starlist": starlist,
-        "starsAz": starsAz,
-        "starsAlt": starsAlt,
-        "sunRise": sunRise,
-        "sunSet": sunSet,
-        "sunAzSet": sunAzSet,
-        "starAzRiseList": starAzRiseList,
-        "starVisList": starVisList,
-        "starMaxAltList": starMaxAltList
-    }
-
-    return skydict
-
-def init_synRSC_excel_writer(writepath, writename, horizon, alt_window, bsize, gsize):
-    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
-    workbook = writer.book
-    sheets = {}
-    for name in ['RSCs', 'Mag Select', 'Name Select', 'DBC Select', 'Full Choice']:
-        ws = workbook.add_worksheet(name)
-        writer.sheets[name] = ws
-        sheets[name] = ws
-    cell_format = workbook.add_format()
-    cell_format.set_font_size(11)
-    # Metadata
-    sheets['RSCs'].write(0, 0, f"horizon is {horizon}", cell_format)
-    sheets['RSCs'].write(1, 0, f"alt window is {alt_window}", cell_format)
-    sheets['RSCs'].write(2, 0, f"bsize = {bsize}", cell_format)
-    sheets['RSCs'].write(3, 0, f"gsize = {gsize}", cell_format)
-    return writer, workbook, sheets, cell_format
-
-
-def write_rsc_table(i, df, sheets, writer, cell_format):
-    df.to_excel(writer, sheet_name='RSCs', startrow=i * 15 + 5, startcol=0)
-    sheets['RSCs'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
-
-def write_mag_select(i, df, mag_dict, sheets, writer, cell_format):
-    df_mag = mag_data(df, mag_dict)
-    df_mag.to_excel(writer, sheet_name='Mag Select', startrow=i * 15 + 5, startcol=0)
-    sheets['Mag Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
-
-def write_name_select(i, df, mag_dict, known_stars_dict, sheets, writer, cell_format):
-    df_name, known_stars_dict = name_or_mag_data(df, mag_dict, known_stars_dict)
-    df_name.to_excel(writer, sheet_name='Name Select', startrow=i * 15 + 5, startcol=0)
-    sheets['Name Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
-    sheets['Name Select'].write(4, 10, f"Number of known stars = {len(known_stars_dict)}", cell_format)
-    df_dict = pd.DataFrame(list(known_stars_dict.items()), columns=["H-index", "'Known' index"])
-    df_dict.to_excel(writer, sheet_name='Name Select', startrow=5, startcol=10, index=False)
-    return known_stars_dict
-
-def write_dbc_select(i, df, dbc_table, sheets, writer, cell_format):
-    df_dbc = dbc_data(df, dbc_table)
-    df_dbc.to_excel(writer, sheet_name='DBC Select', startrow=i * 15 + 5, startcol=0)
-    sheets['DBC Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
-
-def write_full_choice(i, df, mag_dict, dbc_table, sheets, writer, cell_format):
-    df_choices, choices_dict = full_choice_data(df, mag_dict, dbc_table)
-    df_choices.to_excel(writer, sheet_name='Full Choice', startrow=i * 15 + 5, startcol=0)
-    sheets['Full Choice'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
-    return choices_dict
-
-def write_choices_summary(all_choices_dict, writer):
-    df_dict = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
-    df_dict.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)
-
-
-def write_synRSC_to_excel(
-    writepath, writename, horizon, alt_window, bsize, gsize, skydict, mag_dict):
-
-    # initalize excel writer
-    writer, workbook, sheets, cell_format = init_synRSC_excel_writer(
-        writepath, writename, horizon, alt_window, bsize, gsize
-    )
-    # initialize helper dictionaries
-    known_stars_dict = {}
-    all_choices_dict = {}
-    dbc_dict = {i: {} for i in range(24)}
-        
-    # loop over 24 tables
-    for i in range(24):
-        date = i * 15 # every 15 days
-        # main synRSC table & update dbc dict
-        df, dbc_table = synRSC(date, alt_window, horizon, bsize, gsize,
-                            skydict["sunSet"], skydict["sunRise"], skydict["starlist"], skydict["starsAz"], skydict["starsAlt"], skydict["starVisList"]   )
-        dbc_dict[i] = dbc_table # add to main dbc dictionary
-        write_rsc_table(i, df, sheets, writer, cell_format)
-        
-        # write mag select 
-        write_mag_select(i, df, mag_dict, sheets, writer, cell_format)
-        
-        # write name select & update known stars dict
-        known_stars_dict = write_name_select(i, df, mag_dict, known_stars_dict, sheets, writer, cell_format)
-        
-        # write dbc select 
-        write_dbc_select(i, df, dbc_table, sheets, writer, cell_format)
-        
-        # write full choice & update all choices dict
-        choices_dict = write_full_choice(i, df, mag_dict, dbc_table, sheets, writer, cell_format)
-        for k, v in choices_dict.items():
-            all_choices_dict[k] = all_choices_dict.get(k, 0) + v
-    # write summary of all choices
-    write_choices_summary(all_choices_dict, writer)
-    writer.close()
