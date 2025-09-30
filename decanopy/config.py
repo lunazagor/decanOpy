@@ -12,6 +12,7 @@ DEFAULT_STAR_NAMES = PACKAGE_DATA / "star_data_names.csv"
 USER_INPUT_SKYFLOW_DIR = ROOT_DIR / "data" / "input" / "skyflow"
 USER_INPUT_REAL_SKY = USER_INPUT_SKYFLOW_DIR / "real_sky"
 USER_INPUT_RAND_SKY = USER_INPUT_SKYFLOW_DIR / "rand_sky"
+USER_INPUT_STAR_LIKE = USER_INPUT_SKYFLOW_DIR / "star_like"
 
 # === Skyflow Outputs (generated star motions) ===
 OUTPUT_SKYFLOW_DIR = ROOT_DIR / "data" / "output" / "skyflow"
