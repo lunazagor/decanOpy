@@ -626,6 +626,8 @@ def initialize_synRSC_excel(writepath, writename, horizon, alt_window, bsize, gs
     fc_wsheet = workbook.add_worksheet('Full Choice')
     writer.sheets['Full Choice'] = fc_wsheet
 
+    # add compare sheet here
+
     # return all objects
     return writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet
 
