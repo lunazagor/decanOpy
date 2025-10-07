@@ -113,7 +113,7 @@ def synRSC(date_ind, alt_window, horizon, bsize, gsize, sunSet, sunRise, starlis
     df.columns = [-3, -2, -1, 0, 1, 2, 3]
     return df, dbc_dict
 
-def mag_select_distinct(row_list, ind_list, mag_dict, df_mag):
+def mag_select_distinct(row_list, ind_list, mag_dict):
     '''
     Sort stars by magnitude and return only the lowest magnitude star in the row.  
     If there are multiple stars with the same lowest magnitude, pick one randomly.
@@ -129,7 +129,25 @@ def mag_select_distinct(row_list, ind_list, mag_dict, df_mag):
         # pick randomly
         pick = np.random.randint(0, len(row_list))
         return (row_list[pick], ind_list[pick])
-    
+
+def mag_select_distinct_dbc(row_list, ind_list, mag_dict, dbc_dict):
+    '''
+    Sort stars by magnitude and return only the lowest magnitude star in the row.  
+    If there are multiple stars with the same lowest magnitude, pick the one closest to its bin centre (lowest dbc).
+    '''
+    # sort and filter candidates by magnitude
+    (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, mag_dict) # sort
+    row_mag_list = [mag_dict[x] for x in row_list]  # get magnitudes of sorted stars
+    row_list, ind_list = sorted_magnitude_filter(row_list, ind_list, row_mag_list, 0.0) # filter to only lowest mag value
+    # how many stars?
+    if len(row_list) == 1: # only one star in row
+        return (row_list[0], ind_list[0])
+    elif len(row_list) > 1: # more than one star in row
+        # pick lowest dbc
+        min_idx = np.argmin([dbc_dict[star] for star in row_list])
+        return (row_list[min_idx], ind_list[min_idx])
+        # NOTE: this can theoretically still be degenerate if multiple stars have the same dbc value
+
 def mag_data(df, mag_dict):
     '''
     Given a data frame made with synRSC and a name-to-magnitude value dictionary, 
@@ -148,7 +166,7 @@ def mag_data(df, mag_dict):
             row_list += dlist
             ind_list += [j] * len(dlist)
         # select by magnitude
-        (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_mag)   
+        (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict)   
         df_mag.at[i, ind + 3] = star
     # name columns
     df_mag.columns = [-3, -2, -1, 0, 1, 2, 3]
@@ -188,7 +206,7 @@ def name_or_mag_data(df, mag_dict, known_stars):
             #print("Blank row found!")
         elif len(scand_list) == 0:
             # select by magnitude
-            (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict, df_magname)   
+            (star, ind) = mag_select_distinct(row_list, ind_list, mag_dict)   
             df_magname.at[i, ind + 3] = star
             known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
         # CASE 2: one known star, choose that one
@@ -198,7 +216,7 @@ def name_or_mag_data(df, mag_dict, known_stars):
         # CASE 3: several known stars, choose the brightest one 
         else:
             # find the brightest available star and add to known star list
-            (star, ind) = mag_select_distinct(scand_list, scand_list_ind, mag_dict, df_magname)   
+            (star, ind) = mag_select_distinct(scand_list, scand_list_ind, mag_dict)   
             df_magname.at[i, ind + 3] = star
             # known_stars[star] = "K" + str(len(known_stars)).zfill(2) # update known star dictionary 
         # add chosen start to tablist 
@@ -340,51 +358,57 @@ def dbc_data(df, dbc_dict):
     df_dbc.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", "d_dbc"]
     return df_dbc
 
-def initialize_synRSC_excel(writepath, writename, horizon, alt_window, bsize, gsize):
-    """
-    Helper to initialize Excel writer, sheets, and formatting for synRSC output.
-    Returns: writer, workbook, worksheet, worksheet2, worksheet3, worksheet4, worksheet5, format
-    """
-    # Create Excel Writer Object from Pandas  
-    writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
-    workbook = writer.book
-
-    # Format
-    cell_format = workbook.add_format()
-    cell_format.set_font_size(11)
-
-    # Create worksheets with all possible stars 
-    rsc_wsheet = workbook.add_worksheet('RSCs')
-    writer.sheets['RSCs'] = rsc_wsheet
-    # Write metadata
-    rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
-    rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
-    rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
-    rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
-
-    # add choices sheets
-    mag_wsheet = workbook.add_worksheet('Mag Select')
-    writer.sheets['Mag Select'] = mag_wsheet
-
-    name_wsheet = workbook.add_worksheet('Name Select')
-    writer.sheets['Name Select'] = name_wsheet
-
-    dbc_wsheet = workbook.add_worksheet('DBC Select')
-    writer.sheets['DBC Select'] = dbc_wsheet
-
-    fc_wsheet = workbook.add_worksheet('Full Choice')
-    writer.sheets['Full Choice'] = fc_wsheet
-
-    # add compare sheet here
-
-    # return all objects
-    return writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, fc_wsheet
+def cbin_data(df, dbc_dict, mag_dict):
+    '''
+    Algorithm to prioritize centre bin, breaks degeneracy via dbc. 
+    If no centre bin option, use mag select on other bins, break degeneracy via dbc.
+    '''
+    df_cb = pd.DataFrame(data=np.empty((13, 10), dtype=str))  # 13 rows, 7 bins + 3 columns for separation, choice type, and comments
+    for i in range(0, 13):
+        row_list = []
+        ind_list = []
+        dbc_dict_row = dbc_dict[i]
+        # make list of candidates
+        for j in range(-3, 4):
+            # list of available stars
+            dlist = list(filter(None, df[j][i].split(' ')))
+            row_list += dlist
+            ind_list += [j] * len(dlist)
+        # make selections
+        if len(row_list)==0:
+            # mark if no star candidates in row
+            df_cb.at[i, 8] = "D"
+        elif len(row_list)==1:   
+            # only one option 
+            df_cb.at[i, ind_list[0] + 3] = row_list[0] 
+            df_cb.at[i, 8] = "S" # note single star
+            df_cb.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]]))
+        else: # if 2 or more stars
+            # check if centre bin has candidates
+            if 0 in ind_list:
+                # if so, select from centre bin candidates
+                cb_list = [row_list[k] for k in range(len(row_list)) if ind_list[k]==0]
+                (row_list, ind_list) = cosorted_by_dict(cb_list, [0]*len(cb_list), dbc_dict_row)
+                df_cb.at[i, 3] = row_list[0]  # Assign the first star in the sorted list
+                if len(row_list)>1:
+                    df_cb.at[i, 9] = str(np.round(dbc_dict_row[row_list[1]] - dbc_dict_row[row_list[0]],2))
+                    df_cb.at[i, 8] = "DBC0" # central chosen by dbc
+                else:
+                    df_cb.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]],2))
+                    df_cb.at[i, 8] = "CB0" # only one centre bin 
+            # else, mag select from other bins
+            else:
+                (star, ind) = mag_select_distinct_dbc(row_list, ind_list, mag_dict, dbc_dict_row)   
+                df_cb.at[i, ind + 3] = star
+                df_cb.at[i, 8] = "mag" # chosen by mag (only dbc, not random))
+    df_cb.columns = [-3, -2, -1, 0, 1, 2, 3, "", "Code", "d_dbc"]
+    return df_cb
 
 def init_synRSC_excel_writer(writepath, writename, horizon, alt_window, bsize, gsize):
     writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
     workbook = writer.book
     sheets = {}
-    for name in ['RSCs', 'Mag Select', 'Name Select', 'DBC Select', 'Full Choice']:
+    for name in ['RSCs', 'Mag Select', 'Name Select', 'DBC Select', 'CBin Select', 'Full Choice']:
         ws = workbook.add_worksheet(name)
         writer.sheets[name] = ws
         sheets[name] = ws
@@ -419,6 +443,11 @@ def write_dbc_select(i, df, dbc_table, sheets, writer, cell_format):
     df_dbc = dbc_data(df, dbc_table)
     df_dbc.to_excel(writer, sheet_name='DBC Select', startrow=i * 15 + 5, startcol=0)
     sheets['DBC Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
+
+def write_cbin_select(i, df, mag_dict, dbc_table, sheets, writer, cell_format):
+    df_cb = cbin_data(df, dbc_table, mag_dict)
+    df_cb.to_excel(writer, sheet_name='CBin Select', startrow=i * 15 + 5, startcol=0)
+    sheets['CBin Select'].write(i * 15 + 5, 0, f"Table {i + 1}", cell_format)
 
 def write_full_choice(i, df, mag_dict, dbc_table, sheets, writer, cell_format):
     df_choices, choices_dict = full_choice_data(df, mag_dict, dbc_table)
@@ -461,6 +490,9 @@ def write_synRSC_to_excel(writename, horizon, alt_window, bsize, gsize, skydict,
         
         # write dbc select 
         write_dbc_select(i, df, dbc_table, sheets, writer, cell_format)
+
+        # write cbin select 
+        write_cbin_select(i, df, skydict["mag_dict"], dbc_table, sheets, writer, cell_format)
         
         # write full choice & update all choices dict
         choices_dict = write_full_choice(i, df, skydict["mag_dict"], dbc_table, sheets, writer, cell_format)
@@ -689,3 +721,46 @@ def write_synRSC_to_excel(writename, horizon, alt_window, bsize, gsize, skydict,
 #     return(df_magname, known_stars)    
 
 # main and helper functions for full-choice algorithm
+
+# def initialize_synRSC_excel(writepath, writename, horizon, alt_window, bsize, gsize):
+#     """
+#     Helper to initialize Excel writer, sheets, and formatting for synRSC output.
+#     Returns: writer, workbook, worksheet, worksheet2, worksheet3, worksheet4, worksheet5, format
+#     """
+#     # Create Excel Writer Object from Pandas  
+#     writer = pd.ExcelWriter(writepath / writename, engine='xlsxwriter')
+#     workbook = writer.book
+
+#     # Format
+#     cell_format = workbook.add_format()
+#     cell_format.set_font_size(11)
+
+#     # Create worksheets with all possible stars 
+#     rsc_wsheet = workbook.add_worksheet('RSCs')
+#     writer.sheets['RSCs'] = rsc_wsheet
+#     # Write metadata
+#     rsc_wsheet.write(0, 0, "horizon is " + str(horizon), cell_format)
+#     rsc_wsheet.write(1, 0, "alt window is " + str(alt_window), cell_format)
+#     rsc_wsheet.write(2, 0, "bsize = " + str(bsize), cell_format)
+#     rsc_wsheet.write(3, 0, "gsize = " + str(gsize), cell_format)
+
+#     # add choices sheets
+#     mag_wsheet = workbook.add_worksheet('Mag Select')
+#     writer.sheets['Mag Select'] = mag_wsheet
+
+#     name_wsheet = workbook.add_worksheet('Name Select')
+#     writer.sheets['Name Select'] = name_wsheet
+
+#     dbc_wsheet = workbook.add_worksheet('DBC Select')
+#     writer.sheets['DBC Select'] = dbc_wsheet
+
+#     cbin_wsheet = workbook.add_worksheet('Cbin Select')
+#     writer.sheets['Cbin Select'] = cbin_wsheet
+
+#     fc_wsheet = workbook.add_worksheet('Full Choice')
+#     writer.sheets['Full Choice'] = fc_wsheet
+
+#     # add compare sheet here
+
+#     # return all objects
+#     return writer, workbook, cell_format, rsc_wsheet, mag_wsheet, name_wsheet, dbc_wsheet, cbin_wsheet, fc_wsheet
