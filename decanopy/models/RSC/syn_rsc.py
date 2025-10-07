@@ -349,7 +349,7 @@ def dbc_data(df, dbc_dict):
             # only one option 
             df_dbc.at[i, ind_list[0] + 3] = row_list[0] 
             df_dbc.at[i, 8] = "S" # note single star
-            df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]]))
+            df_dbc.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]], 2))
         else: # if 2 or more stars
             # cosort by dbc
             (row_list, ind_list) = cosorted_by_dict(row_list, ind_list, dbc_dict_row)
@@ -382,7 +382,7 @@ def cbin_data(df, dbc_dict, mag_dict):
             # only one option 
             df_cb.at[i, ind_list[0] + 3] = row_list[0] 
             df_cb.at[i, 8] = "S" # note single star
-            df_cb.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]]))
+            df_cb.at[i, 9] = str(np.round(dbc_dict_row[row_list[0]], 2))
         else: # if 2 or more stars
             # check if centre bin has candidates
             if 0 in ind_list:
