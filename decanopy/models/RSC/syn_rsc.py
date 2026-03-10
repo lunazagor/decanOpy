@@ -462,14 +462,17 @@ def write_choices_summary(all_choices_dict, writer):
     df_dict = pd.DataFrame(list(all_choices_dict.items()), columns=["Code", "Count"])
     df_dict.to_excel(writer, sheet_name='Full Choice', startrow=5, startcol=12, index=False)
 
-def write_synRSC_to_excel(writename, horizon, alt_window, bsize, gsize, skydict, clobberSave=False):
+def write_synRSC_to_excel(writename, horizon, alt_window, bsize, gsize, skydict, clobberSave=False, writepath=""):
 
+    if writepath=="": #otherwise, use passed writepath
+        writepath = skydict["writepath"] 
+    
     # check if file exists and clobber if neede
-    clobberCheck(skydict["writepath"], writename, clobberSave)
+    clobberCheck(writepath, writename, clobberSave)
 
     # initalize excel writer
     writer, workbook, sheets, cell_format = init_synRSC_excel_writer(
-        skydict["writepath"], writename, horizon, alt_window, bsize, gsize
+        writepath, writename, horizon, alt_window, bsize, gsize
     )
     # initialize helper dictionaries
     known_stars_dict = {}
