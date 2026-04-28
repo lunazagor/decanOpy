@@ -26,8 +26,12 @@ RSC_OUTPUT_REAL_SKY = OUTPUT_RSC_DIR / "real_sky"
 RSC_OUTPUT_RAND_SKY = OUTPUT_RSC_DIR / "rand_sky"
 RSC_OUTPUT_STAR_LIKE = OUTPUT_RSC_DIR / "star_like"
 
-# === Default observing locale latitude===
+# === Default observing locale latitude ===
 # Luxor, Egypt
 OBS_LAT = 25.6989   # degrees
 OBS_LON = 32.6421   # degrees
 OBS_HEIGHT = 89     # meters
+
+# === Default time steps in JD ===
+dhour = 0.04166666674427688  # every hour
+d4min = 0.00277777784503996  # every 4 minutes

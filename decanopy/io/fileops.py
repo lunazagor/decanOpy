@@ -3,31 +3,34 @@
 
 import sys
 from pathlib import Path
+import numpy as np
 import pandas as pd # for reading CSVs in initialize_paths 
 from tqdm import tqdm # for progress bar in write_skyflow_file
 from decanopy.skyflow.flow import calc_altaz, calc_sun_altaz # used in write_skyflow_file
 import csv # for writing CSVs in write_skyflow_file # maybe use pandas instead?
+import argparse
+from astropy.time import Time
+from astropy.coordinates import Angle
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def parse_args():
     parser = argparse.ArgumentParser('Sky Run')
     parser.add_argument('-yBC', '--yearBC', required=True)
     parser.add_argument('-d', '--decan', nargs='+', type=str, required=False, default=[])
     parser.add_argument('-m', '--month', required=False, default="01")
-    parser.add_argument('-matchS', '--matchStellariumJD', required=False, default=True)
+    parser.add_argument('-matchS', '--matchStellariumJD', required=False, default=True, help='Accepts true/t/yes/y/1 or false/t/no/n/0. Defaults to True.')
     parser.add_argument('-n', '--name', required=False, default="data")
     return parser.parse_args()
-
-def _generate_time_grid(start, dhour, d4min):
-    days = start + np.arange(0, 365)
-    hours = dhour * np.arange(0, 24)
-    minutes = d4min * np.arange(0, 15)
-    return [
-        (day, hour, mins)
-        for day in days
-        for hour in hours
-        for mins in minutes
-    ]
 
 def write_skyflow_file(filename, hd_list, all_times, obj_list, checkpoint_file, start_idx, dS, obs_locale, dhour):
     with open(filename, "a", newline='') as file:
@@ -121,3 +124,21 @@ def clobberCheck(filepath: Path, filename: str, clobberSave: bool):
             print(f"Warning: Overwriting existing file {full_path}")
         else:
             raise FileExistsError(f"File {full_path} already exists. To overwrite, set clobberSave=True.")     
+        
+def load_checkpoint(checkpoint_file: Path) -> int:
+    """
+    Read the last saved iteration index from a checkpoint file.
+
+    Parameters
+    ----------
+    checkpoint_file : Path
+        Path to the .checkpoint file.
+
+    Returns
+    -------
+    int
+        Index to resume from. Returns 0 if no checkpoint file exists.
+    """
+    if checkpoint_file.exists():
+        return int(checkpoint_file.read_text().strip())
+    return 0        
