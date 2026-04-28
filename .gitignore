@@ -9,9 +9,13 @@ SynRSC/synRSC_*.xlsx
 *.xlsx
 *.txt
 *.csv
+*.checkpoint
 
 # Mac DS files
 .DS_Store
+
+# VSC filees 
+*.vscode
 
 # Private folders
 /dev
@@ -20,3 +24,26 @@ SynRSC/synRSC_*.xlsx
 .ipynb_checkpoints*
 __pychache__
 *.pyc
+
+
+# Distribution / packaging
+# from https://github.com/github/gitignore/blob/main/Python.gitignore
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
