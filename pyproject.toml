@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decanopy"
+version = "0.1.0"
+description = "Simulating ancient skies for arcaheoastronomy"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "astropy",
+    "sunpy",
+    "pandas",
+    "tqdm",
+    "star-chart-spherical-projection==1.6.0", # newer versions break right now due to seconds overflow in RA 
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["decanopy*"]
