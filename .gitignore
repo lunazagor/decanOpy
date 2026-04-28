@@ -17,8 +17,9 @@ SynRSC/synRSC_*.xlsx
 # VSC filees 
 *.vscode
 
-# Private folders
+# testing files and folders
 /dev
+*code_graveyard.py
 
 # Python extras
 .ipynb_checkpoints*
