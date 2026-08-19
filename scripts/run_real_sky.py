@@ -9,7 +9,10 @@ import csv
 import argparse
 import os
 import errno
-from decanO import *
+import pandas as pd
+from tqdm import tqdm
+from decanopy.skyflow import flow
+from decanopy.config import OUTPUT_SKYFLOW_DIR 
 
 # supress dubious year warnings 
 import warnings
@@ -57,56 +60,95 @@ start = (Time('-0' + year + '-' + month + '-01T00:00:00.000', scale="local", loc
 
 # values to iterate over
 days = start + 1 * np.arange(0, 365) # iterate for a year 
-#days = start + 1 * np.arange(0, 1) # iterate for a day (for debugging)
 hours = dhour * np.arange(0, 24)
-minutes = d4min * np.arange(0, 15)
+mins = d4min * np.arange(0, 15)
+
+# Prepare all time combinations
+all_times = [
+    (day, hour, min)
+    for day in days
+    for hour in hours
+    for min in mins
+]
 
 ## Get RA/Dec of decans while accounting for precession of the equinoxes
 # NOTE: scsp uses the Vondrak precession algorithm which doesn't EXACTLY match Stellarium, so some differences are to be expected!
 # Other algorithms may be introduced in the future
-(obj_list, hd_list) = precessedCoords(decans, year)
+(obj_list, hd_list) = precessed_coords(decans, year)
 
 ###
 ##### Writing the .txt file
 ###
-direct = os.getcwd() # current working directory
-direct = direct + '/StarLists/RealSky/' # directory where the .txt files go
-
-if not os.path.exists(os.path.dirname(direct)):
-    try:
-        os.makedirs(os.path.dirname(direct))
-    except OSError as exc: # Guard against race condition
-        if exc.errno != errno.EEXIST:
-            raise
-
 # name the txt file (default is "data")
-filename = direct + "/" + name + year + "BC.txt"
+filename = name + year + "BC.txt"
+filename = "real_sky_" + filename # prefix for real sky data # TO DO: GENERALIZE PATHS!!
+filename = OUTPUT_SKYFLOW_DIR / filename
 
+# direct = os.getcwd() # current working directory
+# direct = direct + '/StarLists/RealSky/' # directory where the .txt files go
+
+# if not os.path.exists(os.path.dirname(direct)):
+#     try:
+#         os.makedirs(os.path.dirname(direct))
+#     except OSError as exc: # Guard against race condition
+#         if exc.errno != errno.EEXIST:
+#             raise
+
+# Optionally, resume from checkpoint
+checkpoint_file = filename + ".checkpoint"
+start_idx = 0
+if os.path.exists(checkpoint_file):
+    with open(checkpoint_file, "r") as f:
+        start_idx = int(f.read().strip())
+
+with open(filename, "a", newline='') as file:
+    writer = csv.writer(file, delimiter='|')
+    if start_idx == 0:
+        writer.writerow(hd_list)  # Only write header if new file
+
+    for idx, (day, hour, min) in enumerate(tqdm(all_times[start_idx:], initial=start_idx, total=len(all_times))):
+        temptime = day + hour + min
+        c = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime=Time(temptime, format = 'jd'), observer="earth", frame=frames.Helioprojective)
+        frame_altaz = AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor)
+        sun_altaz = c.transform_to(frame_altaz)
+        # decan coords
+        info = ['{0:.16f}'.format(np.round(temptime, 10)),
+                            str(Time(temptime - dS + (Luxor.lon.deg/15.0) * dhour, format = 'jd').fits), # local time and date
+                            '{0:.3f}'.format(sun_altaz.T.az)[0:-4], # [0:-4] get rid of trailing "deg" for later analysis
+                            '{0:.3f}'.format(sun_altaz.T.alt)[0:-4]]
+        altaz_pairs = [calc_altaz(Angle(obj.ra, unit="deg").hour, obj.dec, Luxor, temptime) for obj in obj_list]
+        info.extend([f'{az:.3f}' for alt, az in altaz_pairs])
+        info.extend([f'{alt:.3f}' for alt, az in altaz_pairs])
+        writer.writerow(info)
+        # Save checkpoint every N rows
+        if idx % 100 == 0:
+            with open(checkpoint_file, "w") as f:
+                f.write(str(idx + start_idx))
 
 # start writing the file
 
-with open(filename, "w", newline='') as file:
-    writer = csv.writer(file, delimiter='|')
-    writer.writerow(hd_list) # write headers
-    for day in days:
-        for hour in hours:
-            for mins in minutes:
-                temptime = day + hour + mins
-                # Sun coords
-                c = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime=Time(temptime, format = 'jd'), observer="earth", frame=frames.Helioprojective)
-                frame_altaz = AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor)
-                sun_altaz = c.transform_to(frame_altaz)
-                # decan coords
-                info = ['{0:.16f}'.format(np.round(temptime, 10)),
-                                 str(Time(temptime - dS + (Luxor.lon.deg/15.0) * dhour, format = 'jd').fits), # local time and date
-                                 '{0:.3f}'.format(sun_altaz.T.az)[0:-4], # [0:-4] get rid of trailing " deg" for later analysis
-                                 '{0:.3f}'.format(sun_altaz.T.alt)[0:-4]]
-                for obj in obj_list:
-                    (alt, az) = calc_altaz(Angle(obj.ra, unit="deg").hour, obj.dec, Luxor, temptime)
-                    info.append('{0:.3f}'.format(az))
-                    info.append('{0:.3f}'.format(alt))
-                    # info_temp = obj.transform_to(AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor))
-                    # info.append('{0.az:.1f}'.format(info_temp)[0:-4]) 
-                    # info.append('{0.alt:.1f}'.format(info_temp)[0:-4]) 
-                # Write to file
-                writer.writerow(info)
+# with open(filename, "w", newline='') as file:
+#     writer = csv.writer(file, delimiter='|')
+#     writer.writerow(hd_list) # write headers
+#     for day in days:
+#         for hour in hours:
+#             for mins in minutes:
+#                 temptime = day + hour + mins
+#                 # Sun coords
+#                 c = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime=Time(temptime, format = 'jd'), observer="earth", frame=frames.Helioprojective)
+#                 frame_altaz = AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor)
+#                 sun_altaz = c.transform_to(frame_altaz)
+#                 # decan coords
+#                 info = ['{0:.16f}'.format(np.round(temptime, 10)),
+#                                  str(Time(temptime - dS + (Luxor.lon.deg/15.0) * dhour, format = 'jd').fits), # local time and date
+#                                  '{0:.3f}'.format(sun_altaz.T.az)[0:-4], # [0:-4] get rid of trailing " deg" for later analysis
+#                                  '{0:.3f}'.format(sun_altaz.T.alt)[0:-4]]
+#                 for obj in obj_list:
+#                     (alt, az) = calc_altaz(Angle(obj.ra, unit="deg").hour, obj.dec, Luxor, temptime)
+#                     info.append('{0:.3f}'.format(az))
+#                     info.append('{0:.3f}'.format(alt))
+#                     # info_temp = obj.transform_to(AltAz(obstime=Time(temptime, format = 'jd'), location=Luxor))
+#                     # info.append('{0.az:.1f}'.format(info_temp)[0:-4]) 
+#                     # info.append('{0.alt:.1f}'.format(info_temp)[0:-4]) 
+#                 # Write to file
+#                 writer.writerow(info)

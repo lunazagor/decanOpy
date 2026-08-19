@@ -49,12 +49,68 @@ def compute_start_jd(year: str, month: str, location: EarthLocation, dhour: floa
     lon_correction = (location.lon.deg / 15.0) * dhour
     return Time(iso_str, scale="local", location=location).jd - lon_correction + dS
 
+
+# def _normalize_ra(h: int, m: int, s: float) -> tuple[int, int, float]:
+#     """Carry overflow in RA seconds/minutes into the next unit."""
+#     extra_m, s = divmod(s, 60)
+#     extra_h, m = divmod(m + int(extra_m), 60)
+#     h = (h + extra_h) % 24
+#     return h, m, s
+
+
+# def precessed_coords(declist: list, year: str) -> tuple[list, list]:
+#     """
+#     Find the RA and Dec of a list of stars accounting for precession of the equinoxes.
+    
+#     Uses the Vondrak algorithm via star_chart_spherical_projection. Note that this
+#     does not exactly match Stellarium — small differences are expected. See issue #X.
+
+#     Parameters
+#     ----------
+#     declist : list
+#         List of star names to look up.
+#     year : str
+#         Year BCE as a string, e.g. '1300'.
+
+#     Returns
+#     -------
+#     obj_list : list of SkyCoord
+#         Precessed coordinates for each star.
+#     hd_list : list of str
+#         Column headers for the output file.
+#     """
+#     years_since = -2000 - int(year)
+#     star_dict = scsp.final_position(declist, year_since_2000=years_since)
+    
+#     obj_list = []
+#     hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
+   
+#     for name, pos in star_dict.items():
+#         parts = pos["RA"].split(".")
+#         h, m = int(parts[0]), int(parts[1])
+
+#         # deal with seconds overflow manually 
+#         s = float(parts[2][0:2] + "." + parts[2][2:]) if len(parts[2]) > 2 else float(parts[2])
+#         if s >= 60:
+#             h, m, s = _normalize_ra(h, m, s)
+        
+#         ra_str = f"{h}h{m}m{s}s" # make legible RA string
+#         RA = Angle(ra_str).deg
+#         Dec = Angle(pos["Declination"], unit="deg").deg
+#         # update object and header lists
+#         obj_list.append(SkyCoord(ra=RA, dec=Dec, unit="deg"))
+#         hd_list.extend([f"{name} Azimuth", f"{name} Altitude"])
+
+#     return obj_list, hd_list
+
+
 def precessed_coords(declist, year):
     """
     Find the Dec and RA of a list of decans accounting for precession of the equinoxes.
     """
     years_since = -2000 - int(year)
-    star_dict = scsp.finalPositionOfStars(declist, yearSince2000=years_since)
+    print(years_since)
+    star_dict = scsp.final_position(declist, year_since_2000=years_since)
 
     obj_list = []
     hd_list = ["Julian Date", "Local Date and Time", "Sun Azimuth", "Sun Altitude"]
@@ -63,7 +119,11 @@ def precessed_coords(declist, year):
         ra_parts = pos["RA"].split(".")
         # Defensive: ensure RA has 3 parts
         if len(ra_parts) == 3:
-            ra_str = f"{ra_parts[0]}h{ra_parts[1]}m{ra_parts[2]}s"
+            h, m = ra_parts[0], ra_parts[1]
+            s = float(ra_parts[2][0:2] + "." + ra_parts[2][2:]) if len(ra_parts[2]) > 2 else float(ra_parts[2])
+            if s >=60.0:
+                print(name, pos["RA"], s)
+            ra_str = f"{h}h{m}m{s}s"
         else:
             # fallback: treat as decimal hours
             ra_str = f"{pos['RA']}h"
