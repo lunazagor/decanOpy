@@ -655,7 +655,7 @@ def plot_heatmap(
     import matplotlib.patches as mpatches
 
     FAIL_CODES = {FAIL1_CODE, FAIL2_CODE, FAILB_CODE}
-    is_fail = grid.applymap(lambda v: float(v) in FAIL_CODES)
+    is_fail = grid.map(lambda v: float(v) in FAIL_CODES)
 
     plot_data = grid.copy().astype(float)
     plot_data[is_fail] = np.nan
@@ -803,7 +803,7 @@ def plot_heatmap_grid(
         
         # select data 
         plot_data = grid.copy().astype(float)
-        is_fail = grid.applymap(lambda v: float(v) in FAIL_CODES)
+        is_fail = grid.map(lambda v: float(v) in FAIL_CODES)
         plot_data[is_fail] = np.nan
         
         # still draw fail cell colors even without text
