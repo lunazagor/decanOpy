@@ -14,7 +14,7 @@ dependencies = [
     "sunpy",
     "pandas",
     "tqdm",
-    "star-chart-spherical-projection==1.6.0", # newer versions break right now due to seconds overflow in RA 
+    "star-chart-spherical-projection==2.0.1", 
 ]
 
 [tool.setuptools.packages.find]
