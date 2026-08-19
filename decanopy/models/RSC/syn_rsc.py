@@ -509,6 +509,7 @@ def write_synRSC_to_excel(writename, horizon, alt_window, bsize, gsize, skydict,
     writer.close()
 
 
+
 ### DEPRECATED VERSIONS BELOW
 
 # def write_synRSC_to_excel(writepath, writename, horizon, alt_window, bsize, gsize, sunSet, sunRise, starlist, starsAz, starsAlt, starVisList, mag_dict):
